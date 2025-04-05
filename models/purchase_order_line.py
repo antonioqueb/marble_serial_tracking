@@ -12,3 +12,13 @@ class PurchaseOrderLine(models.Model):
     def _compute_marble_sqm(self):
         for line in self:
             line.marble_sqm = line.marble_height * line.marble_width
+
+    def _prepare_stock_move_vals(self, picking, price_unit, product_uom_qty, product_uom):
+        vals = super()._prepare_stock_move_vals(picking, price_unit, product_uom_qty, product_uom)
+        vals.update({
+            'marble_height': self.marble_height,
+            'marble_width': self.marble_width,
+            'marble_sqm': self.marble_sqm,
+            'lot_general': self.lot_general,
+        })
+        return vals
