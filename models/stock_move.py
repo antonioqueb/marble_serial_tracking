@@ -1,5 +1,6 @@
 from odoo import models, fields
-
+import logging
+_logger = logging.getLogger(__name__)
 class StockMove(models.Model):
     _inherit = 'stock.move'
 
@@ -16,7 +17,9 @@ class StockMove(models.Model):
             'marble_sqm': self.marble_sqm,
             'lot_general': self.lot_general,
         })
+        _logger.info(f"Move line creado con valores: {vals}")
         return vals
+
 
     def _create_move_lines(self):
         res = super()._create_move_lines()
