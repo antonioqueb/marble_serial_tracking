@@ -14,13 +14,19 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.marble_sqm = line.marble_height * line.marble_width
 
+
     def _prepare_stock_move_vals(self, picking, price_unit, product_uom_qty, product_uom):
         vals = super()._prepare_stock_move_vals(picking, price_unit, product_uom_qty, product_uom)
+        
+        # Aquí verificamos exactamente qué valores se tienen en memoria
+        _logger.info(f"Propagando desde PO line: ID {self.id}, marble_height={self.marble_height}, marble_width={self.marble_width}, marble_sqm={self.marble_sqm}, lot_general={self.lot_general}")
+
         vals.update({
             'marble_height': self.marble_height,
             'marble_width': self.marble_width,
             'marble_sqm': self.marble_sqm,
             'lot_general': self.lot_general,
         })
-        _logger.info(f"Valores enviados desde compra hacia move: {vals}")
+
+        _logger.info(f"Valores finales enviados a move: {vals}")
         return vals
