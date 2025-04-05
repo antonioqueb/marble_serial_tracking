@@ -1,5 +1,6 @@
 from odoo import models, fields, api
-
+import logging
+_logger = logging.getLogger(__name__)
 class PurchaseOrderLine(models.Model):
     _inherit = 'purchase.order.line'
 
@@ -21,4 +22,5 @@ class PurchaseOrderLine(models.Model):
             'marble_sqm': self.marble_sqm,
             'lot_general': self.lot_general,
         })
+        _logger.info(f"Valores enviados desde compra hacia move: {vals}")
         return vals
