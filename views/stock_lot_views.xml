@@ -1,0 +1,15 @@
+<odoo>
+    <record id="view_stock_lot_form_inherit" model="ir.ui.view">
+        <field name="name">stock.lot.form.marble</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="marble_height"/>
+                <field name="marble_width"/>
+                <field name="marble_sqm"/>
+                <field name="lot_general"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

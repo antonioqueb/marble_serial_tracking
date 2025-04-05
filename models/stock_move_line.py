@@ -22,5 +22,18 @@ class StockMoveLine(models.Model):
                         'padding': 3,
                         'prefix': line.lot_general + '-',
                     })
-                line.lot_name = sequence.next_by_id()
+                lot_name = sequence.next_by_id()
+
+                # Crear el número de serie (lot) con valores
+                lot = self.env['stock.lot'].create({
+                    'name': lot_name,
+                    'product_id': line.product_id.id,
+                    'company_id': line.company_id.id,
+                    'marble_height': line.marble_height,
+                    'marble_width': line.marble_width,
+                    'marble_sqm': line.marble_sqm,
+                    'lot_general': line.lot_general,
+                })
+                line.lot_id = lot.id
+                line.lot_name = lot_name
         return lines
