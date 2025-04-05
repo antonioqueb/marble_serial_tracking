@@ -5,5 +5,5 @@ class PurchaseOrder(models.Model):
 
     def button_confirm(self):
         res = super().button_confirm()
-        self.mapped('picking_ids')._action_assign()  # Forza la creación inmediata de move_lines
+        self.mapped('picking_ids').action_assign()
         return res
