@@ -1,0 +1,15 @@
+<odoo>
+    <record id="purchase_order_line_form_inherit" model="ir.ui.view">
+        <field name="name">purchase.order.line.form.marble</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='order_line']/tree/field[@name='product_qty']" position="after">
+                <field name="marble_height"/>
+                <field name="marble_width"/>
+                <field name="marble_sqm" readonly="1"/>
+                <field name="lot_general"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
