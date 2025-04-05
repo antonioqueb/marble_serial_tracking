@@ -17,3 +17,17 @@ class StockMove(models.Model):
             'lot_general': self.lot_general,
         })
         return vals
+
+    def _create_move_lines(self):
+        res = super()._create_move_lines()
+        for move in self:
+            for line in move.move_line_ids:
+                if not line.marble_height:
+                    line.marble_height = move.marble_height
+                if not line.marble_width:
+                    line.marble_width = move.marble_width
+                if not line.marble_sqm:
+                    line.marble_sqm = move.marble_sqm
+                if not line.lot_general:
+                    line.lot_general = move.lot_general
+        return res
