@@ -13,19 +13,4 @@
             </xpath>
         </field>
     </record>
-
-    <!-- NUEVA herencia a la vista embebida en operaciones del picking: -->
-    <record id="view_stock_move_operations_inherit_marble" model="ir.ui.view">
-        <field name="name">stock.move.operations.marble</field>
-        <field name="model">stock.picking</field>
-        <field name="inherit_id" ref="stock.view_stock_move_operations"/>
-        <field name="arch" type="xml">
-            <xpath expr="//field[@name='move_line_ids_without_package']/tree//field[@name='lot_id']" position="after">
-                <field name="marble_height"/>
-                <field name="marble_width"/>
-                <field name="marble_sqm"/>
-                <field name="lot_general"/>
-            </xpath>
-        </field>
-    </record>
 </odoo>
