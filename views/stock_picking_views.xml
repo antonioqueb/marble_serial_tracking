@@ -1,0 +1,17 @@
+<odoo>
+    <record id="view_picking_form_inherit_marble" model="ir.ui.view">
+        <field name="name">stock.picking.form.marble</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <!-- Inserta los campos después del campo product_id en las líneas de operaciones -->
+            <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_id']" position="after">
+                <field name="marble_height"/>
+                <field name="marble_width"/>
+                <field name="marble_sqm"/>
+                <field name="lot_general"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
+
