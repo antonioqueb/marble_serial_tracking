@@ -25,9 +25,11 @@ class PurchaseOrderLine(models.Model):
             _logger.info(f"[MARBLE-ONCHANGE] (onchange) PO Line ID {line.id} → altura={line.marble_height}, ancho={line.marble_width}, lote={line.lot_general}")
 
     def write(self, vals):
-        _logger.info(f"[MARBLE-WRITE] Intentando escribir en PO Line {self.id} con: {vals}")
+        for line in self:
+            _logger.info(f"[MARBLE-WRITE] Intentando escribir en PO Line {line.id} con: {vals}")
         res = super().write(vals)
-        _logger.info(f"[MARBLE-WRITE] Línea PO {self.id} actualizada correctamente")
+        for line in self:
+            _logger.info(f"[MARBLE-WRITE] Línea PO {line.id} actualizada correctamente")
         return res
 
     @api.model_create_multi
@@ -38,6 +40,7 @@ class PurchaseOrderLine(models.Model):
         return lines
 
     def _prepare_stock_move_vals(self, picking, price_unit, product_uom_qty, product_uom):
+        self.ensure_one()  # Nos aseguramos de estar en singleton
         _logger.info(f"[MARBLE-MOVE-VALS] Ejecutando _prepare_stock_move_vals en PO Line ID {self.id}")
         _logger.info(f"[MARBLE-MOVE-VALS] Datos actuales: altura={self.marble_height}, ancho={self.marble_width}, m²={self.marble_sqm}, lote={self.lot_general}")
         vals = super()._prepare_stock_move_vals(picking, price_unit, product_uom_qty, product_uom)
@@ -51,9 +54,12 @@ class PurchaseOrderLine(models.Model):
         return vals
 
     def _create_stock_moves(self, picking):
-        _logger.info(f"[MARBLE-MOVE-CREATE] Ejecutando _create_stock_moves en PO Line ID {self.id}")
-        moves = super()._create_stock_moves(picking)
-        _logger.info(f"[MARBLE-MOVE-CREATE] Total moves creados: {len(moves)}")
-        for move in moves:
-            _logger.info(f"[MARBLE-MOVE-CREATE] Move ID {move.id} creado para producto: {move.product_id.display_name}")
-        return moves
+        res = self.env['stock.move']
+        for line in self:
+            _logger.info(f"[MARBLE-MOVE-CREATE] Ejecutando _create_stock_moves en PO Line ID {line.id}")
+            moves = super(PurchaseOrderLine, line)._create_stock_moves(picking)
+            _logger.info(f"[MARBLE-MOVE-CREATE] Total moves creados para PO Line ID {line.id}: {len(moves)}")
+            for move in moves:
+                _logger.info(f"[MARBLE-MOVE-CREATE] Move ID {move.id} creado para producto: {move.product_id.display_name}")
+            res |= moves
+        return res
