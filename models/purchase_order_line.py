@@ -63,4 +63,4 @@ class PurchaseOrderLine(models.Model):
                 _logger.info(f"[MARBLE-MOVE-CREATE] Move ID {move.id} creado para producto: {move.product_id.display_name}")
             res |= moves
         return res
-# Funcional
+# Funcional module
