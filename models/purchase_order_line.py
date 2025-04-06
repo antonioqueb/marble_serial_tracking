@@ -15,4 +15,7 @@ class PurchaseOrderLine(models.Model):
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
         for line in self:
-            line.marble_sqm = line.marble_height * line.marble_width
+            altura = line.marble_height or 0.0
+            ancho = line.marble_width or 0.0
+            line.marble_sqm = altura * ancho
+            _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: altura={altura}, ancho={ancho} → m²={line.marble_sqm}")
