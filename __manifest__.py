@@ -7,7 +7,7 @@
     'website': 'https://alphaqueb.com',
     'company': 'ALPHAQUEB CONSULTING S.A.S.',
     'maintainer': 'ANTONIO QUEB',
-    'depends': ['purchase', 'stock'],
+    'depends': ['purchase', 'stock',  'sale_management', 'sale_stock'],
     'data': [
         'data/ir_sequence_data.xml',
         'views/purchase_order_views.xml',
