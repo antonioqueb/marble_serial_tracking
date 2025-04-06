@@ -1,0 +1,24 @@
+<odoo>
+    <record id="sale_order_form_view_marble_inherit" model="ir.ui.view">
+        <field name="name">sale.order.form.view.marble</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <!-- Para la vista tipo formulario -->
+            <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="after">
+                <field name="marble_height"/>
+                <field name="marble_width"/>
+                <field name="marble_sqm" readonly="1"/>
+                <field name="lot_general"/>
+            </xpath>
+
+            <!-- Para la vista tipo lista -->
+            <xpath expr="//field[@name='order_line']/list//field[@name='product_id']" position="after">
+                <field name="marble_height"/>
+                <field name="marble_width"/>
+                <field name="marble_sqm" readonly="1"/>
+                <field name="lot_general"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
