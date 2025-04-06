@@ -17,27 +17,34 @@ class PurchaseOrderLine(models.Model):
             line.marble_sqm = line.marble_height * line.marble_width
 
     def _create_stock_moves(self, picking):
-        """Sobrescribe el método que genera los stock.move para asegurar
-        que se propaguen los campos personalizados desde la orden de compra."""
         self.ensure_one()
         moves = super()._create_stock_moves(picking)
 
         _logger.info("=== INICIO _create_stock_moves ===")
-        _logger.info(f"PO Line ID: {self.id}")
-        _logger.info(f"Valores personalizados en línea de compra: "
-                     f"marble_height={self.marble_height}, marble_width={self.marble_width}, "
-                     f"marble_sqm={self.marble_sqm}, lot_general={self.lot_general}")
+        _logger.info(f"[MARBLE] PO Line ID: {self.id}, estado actual en memoria:")
+        _logger.info(f"[MARBLE] marble_height={self.marble_height} ({type(self.marble_height)}), "
+                     f"marble_width={self.marble_width} ({type(self.marble_width)}), "
+                     f"marble_sqm={self.marble_sqm} ({type(self.marble_sqm)}), "
+                     f"lot_general={self.lot_general} ({type(self.lot_general)})")
+
+        # Forzamos lectura de BD para obtener datos reales persistidos
+        line = self.browse(self.id).sudo()
+        read_data = line.read(['marble_height', 'marble_width', 'marble_sqm', 'lot_general'])[0]
+
+        _logger.info(f"[MARBLE] Datos leídos desde BD para PO Line {self.id}: {read_data}")
 
         for move in moves:
             move.write({
-                'marble_height': self.marble_height or 0.0,
-                'marble_width': self.marble_width or 0.0,
-                'marble_sqm': self.marble_sqm or 0.0,
-                'lot_general': self.lot_general or '',
+                'marble_height': read_data.get('marble_height') or 0.0,
+                'marble_width': read_data.get('marble_width') or 0.0,
+                'marble_sqm': read_data.get('marble_sqm') or 0.0,
+                'lot_general': read_data.get('lot_general') or '',
             })
-            _logger.info(f"Campos escritos en move_id={move.id}: "
-                         f"height={self.marble_height}, width={self.marble_width}, "
-                         f"sqm={self.marble_sqm}, lote={self.lot_general}")
-        _logger.info("=== FIN _create_stock_moves ===")
+            _logger.info(f"[MARBLE] → stock.move id={move.id} actualizado con: "
+                         f"height={read_data.get('marble_height')}, "
+                         f"width={read_data.get('marble_width')}, "
+                         f"sqm={read_data.get('marble_sqm')}, "
+                         f"lote={read_data.get('lot_general')}")
 
+        _logger.info("=== FIN _create_stock_moves ===")
         return moves
