@@ -8,7 +8,7 @@ class StockRule(models.Model):
         name, origin, company_id, values
     ):
         """
-        'values' es el diccionario que viene de _prepare_procurement_values()
+        'values' es el diccionario que viene de _prepare_procurement_values() 
         en sale.order.line. Aquí tomamos esos campos y los inyectamos en 
         el diccionario que acabará creando un stock.move.
         """

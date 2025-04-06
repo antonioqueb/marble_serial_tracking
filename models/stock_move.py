@@ -6,7 +6,7 @@ _logger = logging.getLogger(__name__)
 class StockMove(models.Model):
     _inherit = 'stock.move'
 
-    # Campo Many2one para forzar el lote escogido en la venta
+    # Campo Many2one para guardar el lote/serie escogido en la venta
     so_lot_id = fields.Many2one('stock.lot', string="Lote Forzado (Venta)")
 
     # Campos de mármol
@@ -52,21 +52,25 @@ class StockMove(models.Model):
         """
         Sobrescribimos la asignación de stock para forzar que,
         si hay un lote específico 'so_lot_id' proveniente de la venta,
-        se reserve en ese lote y no según la política FIFO.
+        se reserve en ese lote y no según la política FIFO (PEPS).
         """
         # Primero dejamos que Odoo haga la reserva estándar
         super()._action_assign()
 
         # Luego forzamos la reserva en el lote si 'so_lot_id' está presente
-        for move in self.filtered(lambda m: m.state in ('confirmed', 'partially_available', 'waiting')):
+        for move in self.filtered(lambda m: m.state in ('confirmed','partially_available','waiting')):
+            # Si el producto está trackeado y hay so_lot_id
             if move.product_id.tracking != 'none' and move.so_lot_id:
                 lot = move.so_lot_id
                 _logger.info(f"Forzando reserva en lote {lot.name} para Move {move.id} ({move.product_id.display_name})")
 
+                # Cuánto ya está reservado
                 already_reserved = sum(move.move_line_ids.mapped('product_uom_qty'))
+                # Cuánto falta para completar la cantidad de la línea
                 missing_to_reserve = move.product_uom_qty - already_reserved
+
                 if missing_to_reserve > 0:
-                    # Verificamos stock disponible en ese lote
+                    # Verificamos el stock disponible en ese lote y ubicación
                     available_qty = self.env['stock.quant']._get_available_quantity(
                         move.product_id,
                         move.location_id,
@@ -79,7 +83,10 @@ class StockMove(models.Model):
                         _logger.warning(f"No hay stock disponible en el lote {lot.name}.")
                         continue
 
+                    # Reservamos lo mínimo entre lo faltante y lo disponible
                     qty_to_reserve = min(missing_to_reserve, available_qty)
+
+                    # Vemos si ya existe un move_line con ese lote
                     existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id == lot)
                     if existing_line:
                         existing_line.product_uom_qty += qty_to_reserve
@@ -91,8 +98,8 @@ class StockMove(models.Model):
                             'location_id': move.location_id.id,
                             'location_dest_id': move.location_dest_id.id,
                             'lot_id': lot.id,
-                            # Normalmente en salidas, 'product_uom_qty' define la reserva;
-                            # 'qty_done' se llena al validar la transferencia.
+                            # En salidas, 'product_uom_qty' fija la reserva;
+                            # 'qty_done' se llena cuando confirmas la transferencia.
                             'product_uom_qty': qty_to_reserve,
                         })
         return True
