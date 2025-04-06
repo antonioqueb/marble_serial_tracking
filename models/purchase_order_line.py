@@ -18,10 +18,12 @@ class PurchaseOrderLine(models.Model):
             line.marble_sqm = line.marble_height * line.marble_width
 
     def _prepare_stock_move_vals(self, picking, price_unit, product_uom_qty, product_uom):
+        _logger.info(f"[MARBLE-TEST] Ejecutando _prepare_stock_move_vals en PO Line ID {self.id}")
+        _logger.info(f"[MARBLE-TEST] Datos actuales: marble_height={self.marble_height}, marble_width={self.marble_width}, marble_sqm={self.marble_sqm}, lot_general={self.lot_general}")
+
         vals = super()._prepare_stock_move_vals(picking, price_unit, product_uom_qty, product_uom)
-        _logger.info("=== [MARBLE] _prepare_stock_move_vals ===")
-        _logger.info(f"PO Line ID: {self.id}")
-        _logger.info(f"marble_height: {self.marble_height}, marble_width: {self.marble_width}, marble_sqm: {self.marble_sqm}, lot_general: {self.lot_general}")
+
+        _logger.info(f"[MARBLE-TEST] Valores heredados del super(): {vals}")
 
         vals.update({
             'marble_height': self.marble_height or 0.0,
@@ -30,12 +32,14 @@ class PurchaseOrderLine(models.Model):
             'lot_general': self.lot_general or '',
         })
 
-        _logger.info(f"Valores enviados al move: {vals}")
+        _logger.info(f"[MARBLE-TEST] Valores finales enviados al stock.move: {vals}")
         return vals
 
     def _create_stock_moves(self, picking):
+        _logger.info(f"[MARBLE-TEST] Ejecutando _create_stock_moves en PO Line ID {self.id}")
         moves = super()._create_stock_moves(picking)
-        _logger.info("=== [MARBLE] _create_stock_moves ===")
+
+        _logger.info(f"[MARBLE-TEST] Total moves creados: {len(moves)}")
         for move in moves:
-            _logger.info(f"→ Move generado: {move.id}, producto: {move.product_id.display_name}")
+            _logger.info(f"[MARBLE-TEST] Move ID {move.id} creado para producto: {move.product_id.display_name}")
         return moves
