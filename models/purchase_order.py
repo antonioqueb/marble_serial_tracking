@@ -1,5 +1,6 @@
 from odoo import models
 import logging
+# FUNCIONAL
 
 _logger = logging.getLogger(__name__)
 
