@@ -6,8 +6,9 @@ _logger = logging.getLogger(__name__)
 class StockMove(models.Model):
     _inherit = 'stock.move'
 
-    # Campo Many2one para guardar el lote/serie escogido en la venta
+    # Campos de tracking desde la venta
     so_lot_id = fields.Many2one('stock.lot', string="Lote Forzado (Venta)")
+    lot_id = fields.Many2one('stock.lot', string='Número de Serie (Venta)')  # ← Campo nuevo para mostrar en vista entrega
 
     # Campos de mármol
     marble_height = fields.Float('Altura (m)')
@@ -18,10 +19,11 @@ class StockMove(models.Model):
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
         """
         Mantiene la lógica original de crear la move line 
-        con los campos de mármol.
+        con los campos de mármol y el lote vinculado a la venta.
         """
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
         vals.update({
+            'lot_id': self.lot_id.id,
             'marble_height': self.marble_height,
             'marble_width': self.marble_width,
             'marble_sqm': self.marble_sqm,
@@ -33,11 +35,14 @@ class StockMove(models.Model):
     def _create_move_lines(self):
         """
         Tras crear las líneas, completa los valores de mármol
-        si vienen vacíos en el move line.
+        si vienen vacíos en el move line. Incluye la asignación
+        del lote asociado a la venta.
         """
         res = super()._create_move_lines()
         for move in self:
             for line in move.move_line_ids:
+                if not line.lot_id and move.lot_id:
+                    line.lot_id = move.lot_id
                 if not line.marble_height:
                     line.marble_height = move.marble_height
                 if not line.marble_width:
@@ -59,18 +64,14 @@ class StockMove(models.Model):
 
         # Luego forzamos la reserva en el lote si 'so_lot_id' está presente
         for move in self.filtered(lambda m: m.state in ('confirmed','partially_available','waiting')):
-            # Si el producto está trackeado y hay so_lot_id
             if move.product_id.tracking != 'none' and move.so_lot_id:
                 lot = move.so_lot_id
                 _logger.info(f"Forzando reserva en lote {lot.name} para Move {move.id} ({move.product_id.display_name})")
 
-                # Cuánto ya está reservado
                 already_reserved = sum(move.move_line_ids.mapped('product_uom_qty'))
-                # Cuánto falta para completar la cantidad de la línea
                 missing_to_reserve = move.product_uom_qty - already_reserved
 
                 if missing_to_reserve > 0:
-                    # Verificamos el stock disponible en ese lote y ubicación
                     available_qty = self.env['stock.quant']._get_available_quantity(
                         move.product_id,
                         move.location_id,
@@ -83,10 +84,8 @@ class StockMove(models.Model):
                         _logger.warning(f"No hay stock disponible en el lote {lot.name}.")
                         continue
 
-                    # Reservamos lo mínimo entre lo faltante y lo disponible
                     qty_to_reserve = min(missing_to_reserve, available_qty)
 
-                    # Vemos si ya existe un move_line con ese lote
                     existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id == lot)
                     if existing_line:
                         existing_line.product_uom_qty += qty_to_reserve
@@ -98,8 +97,6 @@ class StockMove(models.Model):
                             'location_id': move.location_id.id,
                             'location_dest_id': move.location_dest_id.id,
                             'lot_id': lot.id,
-                            # En salidas, 'product_uom_qty' fija la reserva;
-                            # 'qty_done' se llena cuando confirmas la transferencia.
                             'product_uom_qty': qty_to_reserve,
                         })
         return True
