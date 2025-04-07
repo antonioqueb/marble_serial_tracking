@@ -19,10 +19,11 @@ class StockRule(models.Model):
         )
 
         # Si en 'values' viene un 'lot_id' forzado desde la venta,
-        # lo guardamos en 'so_lot_id' para luego forzar la reserva en stock_move.py
+        # lo guardamos tanto en 'so_lot_id' como en 'lot_id'
         forced_lot_id = values.get('lot_id')
         if forced_lot_id:
             res['so_lot_id'] = forced_lot_id
+            res['lot_id'] = forced_lot_id
 
         # Añadimos también tus campos personalizados de mármol
         res.update({
