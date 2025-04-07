@@ -8,13 +8,25 @@ class StockMove(models.Model):
 
     # Campos de tracking desde la venta
     so_lot_id = fields.Many2one('stock.lot', string="Lote Forzado (Venta)")
-    lot_id = fields.Many2one('stock.lot', string='Número de Serie (Venta)')  # ← Campo nuevo para mostrar en vista entrega
+    lot_id = fields.Many2one('stock.lot', string='Número de Serie (Venta)')  # Visible solo en entregas (ver vista)
 
     # Campos de mármol
     marble_height = fields.Float('Altura (m)')
     marble_width = fields.Float('Ancho (m)')
     marble_sqm = fields.Float('Metros Cuadrados')
     lot_general = fields.Char('Lote General')
+
+    # Campo computado para distinguir entregas
+    is_outgoing = fields.Boolean(
+        string='Es Salida',
+        compute='_compute_is_outgoing',
+        store=True
+    )
+
+    @api.depends('picking_type_id.code')
+    def _compute_is_outgoing(self):
+        for move in self:
+            move.is_outgoing = move.picking_type_id.code == 'outgoing'
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
         """
