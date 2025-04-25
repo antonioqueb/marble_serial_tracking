@@ -1,16 +1,18 @@
 <odoo>
-    <!-- La que ya tienes (mantenla): -->
     <record id="view_move_line_tree_inherit_marble" model="ir.ui.view">
         <field name="name">stock.move.line.tree.marble</field>
         <field name="model">stock.move.line</field>
         <field name="inherit_id" ref="stock.view_move_line_tree"/>
         <field name="arch" type="xml">
+
             <xpath expr="//field[@name='lot_id']" position="after">
                 <field name="marble_height"/>
                 <field name="marble_width"/>
                 <field name="marble_sqm"/>
                 <field name="lot_general"/>
+                <field name="pedimento_number"/>
             </xpath>
+
         </field>
     </record>
 </odoo>

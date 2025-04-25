@@ -4,12 +4,16 @@
         <field name="model">stock.lot</field>
         <field name="inherit_id" ref="stock.view_production_lot_form"/>
         <field name="arch" type="xml">
+
+            <!-- datos de mármol + pedimento en la ficha del lote -->
             <xpath expr="//field[@name='name']" position="after">
                 <field name="marble_height"/>
                 <field name="marble_width"/>
                 <field name="marble_sqm"/>
                 <field name="lot_general"/>
+                <field name="pedimento_number" readonly="1"/>
             </xpath>
+
         </field>
     </record>
 </odoo>
