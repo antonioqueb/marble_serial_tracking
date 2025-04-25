@@ -1,19 +1,30 @@
 <odoo>
-    <record id="view_stock_lot_form_inherit" model="ir.ui.view">
-        <field name="name">stock.lot.form.marble</field>
-        <field name="model">stock.lot</field>
-        <field name="inherit_id" ref="stock.view_production_lot_form"/>
-        <field name="arch" type="xml">
+  <record id="view_sale_order_form_marble_inherit" model="ir.ui.view">
+    <field name="name">sale.order.form.marble</field>
+    <field name="model">sale.order</field>
+    <field name="inherit_id" ref="sale.view_order_form"/>
+    <field name="arch" type="xml">
 
-            <!-- datos de mármol + pedimento en la ficha del lote -->
-            <xpath expr="//field[@name='name']" position="after">
-                <field name="marble_height"/>
-                <field name="marble_width"/>
-                <field name="marble_sqm"/>
-                <field name="lot_general"/>
-                <field name="pedimento_number" readonly="1"/>
-            </xpath>
+      <!-- formulario de línea -->
+      <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="after">
+        <field name="lot_id" domain="[('product_id', '=', product_id)]"/>
+        <field name="marble_height"    readonly="1"/>
+        <field name="marble_width"     readonly="1"/>
+        <field name="marble_sqm"       readonly="1"/>
+        <field name="lot_general"      readonly="1"/>
+        <field name="pedimento_number" readonly="1"/>
+      </xpath>
 
-        </field>
-    </record>
+      <!-- tree de líneas -->
+      <xpath expr="//field[@name='order_line']/list//field[@name='product_id']" position="after">
+        <field name="lot_id"/>
+        <field name="marble_height"    readonly="1"/>
+        <field name="marble_width"     readonly="1"/>
+        <field name="marble_sqm"       readonly="1"/>
+        <field name="lot_general"      readonly="1"/>
+        <field name="pedimento_number" readonly="1"/>
+      </xpath>
+
+    </field>
+  </record>
 </odoo>

@@ -5,7 +5,6 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
 
-            <!-- formulario de línea -->
             <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="after">
                 <field name="marble_height"/>
                 <field name="marble_width"/>
@@ -13,7 +12,6 @@
                 <field name="lot_general"/>
             </xpath>
 
-            <!-- tree de líneas -->
             <xpath expr="//field[@name='order_line']/list//field[@name='product_id']" position="after">
                 <field name="marble_height"/>
                 <field name="marble_width"/>
@@ -21,7 +19,6 @@
                 <field name="lot_general"/>
             </xpath>
 
-            <!-- kanban (si se usa) -->
             <xpath expr="//field[@name='order_line']/kanban//field[@name='product_id']" position="after">
                 <field name="marble_height"/>
                 <field name="marble_width"/>

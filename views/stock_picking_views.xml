@@ -5,14 +5,14 @@
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
 
-            <!-- columnas adicionales en la lista de movimientos -->
-            <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_id']" position="after">
+            <!-- ⬇⬇ quitamos pedimento_number: ya lo añadió el módulo de pedimento -->
+            <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_id']"
+                   position="after">
                 <field name="lot_id"           readonly="1" invisible="not is_outgoing"/>
                 <field name="marble_height"    readonly="1"/>
                 <field name="marble_width"     readonly="1"/>
                 <field name="marble_sqm"       readonly="1"/>
                 <field name="lot_general"      readonly="1"/>
-                <field name="pedimento_number" readonly="1"/>
             </xpath>
 
         </field>
