@@ -1,21 +1,44 @@
 -e ### models/stock_move_line.py
 ```
-# models/stock_move_line.py
-from odoo import models, fields, api, _
-import logging
-_logger = logging.getLogger(__name__)
+from odoo import models, fields, api
 
 class StockMoveLine(models.Model):
     _inherit = 'stock.move.line'
 
-    marble_height    = fields.Float('Altura (m)')
-    marble_width     = fields.Float('Ancho (m)')
-    marble_sqm       = fields.Float('Metros Cuadrados')
-    lot_general      = fields.Char ('Lote General')
-    pedimento_number = fields.Char ('Número de Pedimento', size=18)
+    marble_height = fields.Float('Altura (m)')
+    marble_width = fields.Float('Ancho (m)')
+    marble_sqm = fields.Float('Metros Cuadrados')
+    lot_general = fields.Char('Lote General')
 
-    # (código de creación automática de lote sigue idéntico)
-    # ... resto de tu método create sin cambios ...
+    @api.model_create_multi
+    def create(self, vals_list):
+        lines = super().create(vals_list)
+        for line in lines:
+            if line.picking_code == 'incoming' and line.lot_general:
+                sequence_code = 'marble.serial.%s' % line.lot_general
+                sequence = self.env['ir.sequence'].sudo().search([('code', '=', sequence_code)], limit=1)
+                if not sequence:
+                    sequence = self.env['ir.sequence'].sudo().create({
+                        'name': 'Secuencia Mármol %s' % line.lot_general,
+                        'code': sequence_code,
+                        'padding': 3,
+                        'prefix': line.lot_general + '-',
+                    })
+                lot_name = sequence.next_by_id()
+
+                # Crear el número de serie (lot) con valores
+                lot = self.env['stock.lot'].create({
+                    'name': lot_name,
+                    'product_id': line.product_id.id,
+                    'company_id': line.company_id.id,
+                    'marble_height': line.marble_height,
+                    'marble_width': line.marble_width,
+                    'marble_sqm': line.marble_sqm,
+                    'lot_general': line.lot_general,
+                })
+                line.lot_id = lot.id
+                line.lot_name = lot_name
+        return lines
 ```
 
 -e ### models/purchase_order_line.py
@@ -90,17 +113,15 @@ class PurchaseOrderLine(models.Model):
 
 -e ### models/stock_quant.py
 ```
-# models/stock_quant.py
 from odoo import models, fields
 
 class StockQuant(models.Model):
     _inherit = 'stock.quant'
 
-    marble_height    = fields.Float(related='lot_id.marble_height', store=True)
-    marble_width     = fields.Float(related='lot_id.marble_width',  store=True)
-    marble_sqm       = fields.Float(related='lot_id.marble_sqm',    store=True)
-    lot_general      = fields.Char (related='lot_id.lot_general',   store=True)
-    pedimento_number = fields.Char (related='lot_id.pedimento_number', store=True)
+    marble_height = fields.Float('Altura (m)', related='lot_id.marble_height', store=True)
+    marble_width = fields.Float('Ancho (m)', related='lot_id.marble_width', store=True)
+    marble_sqm = fields.Float('Metros Cuadrados', related='lot_id.marble_sqm', store=True)
+    lot_general = fields.Char('Lote General', related='lot_id.lot_general', store=True)
 ```
 
 -e ### models/__init__.py
@@ -185,29 +206,29 @@ class PurchaseOrder(models.Model):
 
 -e ### models/stock_move.py
 ```
-# models/stock_move.py
 from odoo import models, fields, api
 import logging
+
 _logger = logging.getLogger(__name__)
 
 class StockMove(models.Model):
     _inherit = 'stock.move'
 
-    # tracking
+    # Campos de tracking desde la venta
     so_lot_id = fields.Many2one('stock.lot', string="Lote Forzado (Venta)")
-    lot_id    = fields.Many2one('stock.lot', string='Número de Serie (Venta)')
+    lot_id = fields.Many2one('stock.lot', string='Número de Serie (Venta)')  # Visible solo en entregas (ver vista)
 
-    # mármol + pedimento
-    marble_height    = fields.Float('Altura (m)')
-    marble_width     = fields.Float('Ancho (m)')
-    marble_sqm       = fields.Float('Metros Cuadrados')
-    lot_general      = fields.Char ('Lote General')
-    pedimento_number = fields.Char ('Número de Pedimento', size=18)
+    # Campos de mármol
+    marble_height = fields.Float('Altura (m)')
+    marble_width = fields.Float('Ancho (m)')
+    marble_sqm = fields.Float('Metros Cuadrados')
+    lot_general = fields.Char('Lote General')
 
-    # ─── utilidades existentes ───
+    # Campo computado para distinguir entregas
     is_outgoing = fields.Boolean(
+        string='Es Salida',
         compute='_compute_is_outgoing',
-        store=True, string='Es Salida'
+        store=True
     )
 
     @api.depends('picking_type_id.code')
@@ -215,39 +236,95 @@ class StockMove(models.Model):
         for move in self:
             move.is_outgoing = move.picking_type_id.code == 'outgoing'
 
-    # ─── crear move-line con todos los campos ───
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
+        """
+        Mantiene la lógica original de crear la move line 
+        con los campos de mármol y el lote vinculado a la venta.
+        """
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
         vals.update({
-            'lot_id':           self.lot_id.id,
-            'marble_height':    self.marble_height,
-            'marble_width':     self.marble_width,
-            'marble_sqm':       self.marble_sqm,
-            'lot_general':      self.lot_general,
-            'pedimento_number': self.pedimento_number,
+            'lot_id': self.lot_id.id,
+            'marble_height': self.marble_height,
+            'marble_width': self.marble_width,
+            'marble_sqm': self.marble_sqm,
+            'lot_general': self.lot_general,
         })
+        _logger.info(f"Move line creado con valores: {vals}")
         return vals
 
-    # ─── completar líneas existentes ───
     def _create_move_lines(self):
+        """
+        Tras crear las líneas, completa los valores de mármol
+        si vienen vacíos en el move line. Incluye la asignación
+        del lote asociado a la venta.
+        """
         res = super()._create_move_lines()
         for move in self:
-            for line in move.move_line_ids.filtered(lambda l: not l.pedimento_number):
-                line.update({
-                    'lot_id':           move.lot_id,
-                    'marble_height':    move.marble_height,
-                    'marble_width':     move.marble_width,
-                    'marble_sqm':       move.marble_sqm,
-                    'lot_general':      move.lot_general,
-                    'pedimento_number': move.pedimento_number,
-                })
+            for line in move.move_line_ids:
+                if not line.lot_id and move.lot_id:
+                    line.lot_id = move.lot_id
+                if not line.marble_height:
+                    line.marble_height = move.marble_height
+                if not line.marble_width:
+                    line.marble_width = move.marble_width
+                if not line.marble_sqm:
+                    line.marble_sqm = move.marble_sqm
+                if not line.lot_general:
+                    line.lot_general = move.lot_general
         return res
+
+    def _action_assign(self):
+        """
+        Sobrescribimos la asignación de stock para forzar que,
+        si hay un lote específico 'so_lot_id' proveniente de la venta,
+        se reserve en ese lote y no según la política FIFO (PEPS).
+        """
+        # Primero dejamos que Odoo haga la reserva estándar
+        super()._action_assign()
+
+        # Luego forzamos la reserva en el lote si 'so_lot_id' está presente
+        for move in self.filtered(lambda m: m.state in ('confirmed','partially_available','waiting')):
+            if move.product_id.tracking != 'none' and move.so_lot_id:
+                lot = move.so_lot_id
+                _logger.info(f"Forzando reserva en lote {lot.name} para Move {move.id} ({move.product_id.display_name})")
+
+                already_reserved = sum(move.move_line_ids.mapped('product_uom_qty'))
+                missing_to_reserve = move.product_uom_qty - already_reserved
+
+                if missing_to_reserve > 0:
+                    available_qty = self.env['stock.quant']._get_available_quantity(
+                        move.product_id,
+                        move.location_id,
+                        lot_id=lot,
+                        package_id=False,
+                        owner_id=False,
+                        strict=True
+                    )
+                    if available_qty <= 0:
+                        _logger.warning(f"No hay stock disponible en el lote {lot.name}.")
+                        continue
+
+                    qty_to_reserve = min(missing_to_reserve, available_qty)
+
+                    existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id == lot)
+                    if existing_line:
+                        existing_line.product_uom_qty += qty_to_reserve
+                    else:
+                        self.env['stock.move.line'].create({
+                            'move_id': move.id,
+                            'product_id': move.product_id.id,
+                            'product_uom_id': move.product_uom.id,
+                            'location_id': move.location_id.id,
+                            'location_dest_id': move.location_dest_id.id,
+                            'lot_id': lot.id,
+                            'product_uom_qty': qty_to_reserve,
+                        })
+        return True
 ```
 
 -e ### models/stock_rule.py
 ```
-# models/stock_rule.py
-from odoo import models
+from odoo import models, fields
 
 class StockRule(models.Model):
     _inherit = 'stock.rule'
@@ -256,43 +333,45 @@ class StockRule(models.Model):
         self, product_id, product_qty, product_uom, location_id,
         name, origin, company_id, values
     ):
+        """
+        'values' es el diccionario que viene de _prepare_procurement_values() 
+        en sale.order.line. Aquí tomamos esos campos y los inyectamos en 
+        el diccionario que acabará creando un stock.move.
+        """
+        # Llamamos primero al método original de Odoo:
         res = super()._get_stock_move_values(
             product_id, product_qty, product_uom, location_id,
             name, origin, company_id, values
         )
 
-        # lote forzado
+        # Si en 'values' viene un 'lot_id' forzado desde la venta,
+        # lo guardamos tanto en 'so_lot_id' como en 'lot_id'
         forced_lot_id = values.get('lot_id')
         if forced_lot_id:
             res['so_lot_id'] = forced_lot_id
-            res['lot_id']    = forced_lot_id
+            res['lot_id'] = forced_lot_id
 
-        # campos mármol + pedimento
+        # Añadimos también tus campos personalizados de mármol
         res.update({
-            'marble_height':    values.get('marble_height', 0.0),
-            'marble_width':     values.get('marble_width',  0.0),
-            'marble_sqm':       values.get('marble_sqm',    0.0),
-            'lot_general':      values.get('lot_general',   ''),
-            'pedimento_number': values.get('pedimento_number', ''),
+            'marble_height': values.get('marble_height', 0.0),
+            'marble_width': values.get('marble_width', 0.0),
+            'marble_sqm': values.get('marble_sqm', 0.0),
+            'lot_general': values.get('lot_general', ''),
         })
         return res
 ```
 
 -e ### models/stock_lot.py
 ```
-# models/stock_lot.py
 from odoo import models, fields
 
 class StockLot(models.Model):
     _inherit = 'stock.lot'
 
-    # …campos ya existentes…
     marble_height = fields.Float('Altura (m)')
-    marble_width  = fields.Float('Ancho (m)')
-    marble_sqm    = fields.Float('Metros Cuadrados')
-    lot_general   = fields.Char('Lote General')
-
-    pedimento_number = fields.Char('Número de Pedimento', size=18, readonly=True)
+    marble_width = fields.Float('Ancho (m)')
+    marble_sqm = fields.Float('Metros Cuadrados')
+    lot_general = fields.Char('Lote General')
 ```
 
 -e ### views/purchase_order_views.xml
