@@ -12,7 +12,6 @@
         <field name="marble_width"     readonly="1"/>
         <field name="marble_sqm"       readonly="1"/>
         <field name="lot_general"      readonly="1"/>
-        <field name="pedimento_number" readonly="1"/>
       </xpath>
 
       <!-- tree de líneas -->
@@ -22,7 +21,6 @@
         <field name="marble_width"     readonly="1"/>
         <field name="marble_sqm"       readonly="1"/>
         <field name="lot_general"      readonly="1"/>
-        <field name="pedimento_number" readonly="1"/>
       </xpath>
 
     </field>

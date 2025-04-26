@@ -5,7 +5,6 @@
         <field name="inherit_id" ref="stock.view_move_line_tree"/>
         <field name="arch" type="xml">
 
-            <!-- sin pedimento_number -->
             <xpath expr="//field[@name='lot_id']" position="after">
                 <field name="marble_height"/>
                 <field name="marble_width"/>
