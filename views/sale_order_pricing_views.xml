@@ -1,0 +1,22 @@
+<odoo>
+    <record id="view_sale_order_form_pricing_inherit" model="ir.ui.view">
+        <field name="name">sale.order.form.pricing</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+
+            <!-- ─────────── Formulario de la línea ─────────── -->
+            <xpath expr="//field[@name='order_line']/form//field[@name='price_unit']" position="before">
+                <field name="price_level"/>
+                <field name="applied_price_per_sqm" readonly="1"/>
+            </xpath>
+
+            <!-- ─────────── Tree de líneas ─────────── -->
+            <xpath expr="//field[@name='order_line']/list//field[@name='price_unit']" position="before">
+                <field name="price_level"/>
+                <field name="applied_price_per_sqm" readonly="1"/>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>
