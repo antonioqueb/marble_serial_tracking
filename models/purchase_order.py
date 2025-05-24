@@ -22,7 +22,10 @@ class PurchaseOrder(models.Model):
                     'marble_height': po_line.marble_height or 0.0,
                     'marble_width': po_line.marble_width or 0.0,
                     'marble_sqm': po_line.marble_sqm or 0.0,
+                    'marble_thickness': po_line.marble_thickness or 0.0,
                     'lot_general': po_line.lot_general or '',
+
+
                 })
             else:
                 _logger.warning(f"[MARBLE-FIX] No se encontró línea PO para move_vals: {move_vals}")

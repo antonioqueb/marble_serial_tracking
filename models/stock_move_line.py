@@ -14,6 +14,8 @@ class StockMoveLine(models.Model):
     marble_sqm    = fields.Float('Metros Cuadrados')
     lot_general   = fields.Char('Lote General')
     bundle_code   = fields.Char('Bundle Code')
+    marble_thickness = fields.Float('Grosor (cm)')
+
 
     # ─────────── Creación automática de lote ───────────
     @api.model_create_multi
@@ -78,6 +80,7 @@ class StockMoveLine(models.Model):
                 'marble_sqm':    vals.get('marble_sqm'),
                 'lot_general':   lot_general,
                 'bundle_code':   bundle_code_val,
+                'marble_thickness': vals.get('marble_thickness', 0.0),
             }).id
            
 

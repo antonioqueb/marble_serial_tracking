@@ -33,5 +33,6 @@ class StockRule(models.Model):
             'lot_general':      values.get('lot_general',   ''),
             'bundle_code':      values.get('bundle_code',   ''),
             'pedimento_number': values.get('pedimento_number', ''),
+            'marble_thickness': values.get('marble_thickness', 0.0),
         })
         return res

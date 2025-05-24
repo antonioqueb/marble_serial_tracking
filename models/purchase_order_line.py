@@ -11,6 +11,7 @@ class PurchaseOrderLine(models.Model):
     marble_sqm = fields.Float('Metros Cuadrados', compute='_compute_marble_sqm', store=True)
     lot_general = fields.Char('Lote General', store=True)
     bundle_code = fields.Char('Bundle Code', store=True)
+    marble_thickness = fields.Float('Grosor (cm)')
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
@@ -51,6 +52,7 @@ class PurchaseOrderLine(models.Model):
             'marble_sqm': self.marble_sqm or 0.0,
             'lot_general': self.lot_general or '',
             'bundle_code': self.bundle_code or '',
+            'marble_thickness': self.marble_thickness or 0.0,
         })
         _logger.info(f"[MARBLE-MOVE-VALS] Valores enviados al move: {vals}")
         return vals
