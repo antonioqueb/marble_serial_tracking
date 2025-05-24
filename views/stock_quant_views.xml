@@ -2,7 +2,7 @@
     <record id="view_stock_quant_tree_marble_inherit" model="ir.ui.view">
         <field name="name">stock.quant.tree.marble</field>
         <field name="model">stock.quant</field>
-        <field name="inherit_id" ref="stock.view_stock_quant_tree_editable"/> <!-- O stock.view_stock_quant_tree si no es editable -->
+        <field name="inherit_id" ref="stock.view_stock_quant_tree_editable"/>
         <field name="arch" type="xml">
 
             <xpath expr="//field[@name='lot_id']" position="after">
@@ -10,7 +10,7 @@
                 <field name="marble_width"/>
                 <field name="marble_sqm"/>
                 <field name="lot_general"/>
-                <field name="bundle_code"/> <!-- NUEVO CAMPO -->
+                <field name="bundle_code"/>
             </xpath>
 
         </field>
