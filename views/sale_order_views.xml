@@ -5,32 +5,27 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
 
-            <!-- ─────────── Formulario de la línea ─────────── -->
+            <!-- Formulario de la línea -->
             <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="after">
-                <!-- Lote seleccionado -->
                 <field name="lot_id" domain="[('product_id', '=', product_id)]"/>
-                <!-- Pedimento (solo lectura) -->
                 <field name="pedimento_number" readonly="1"/>
-                <!-- Datos de mármol -->
                 <field name="marble_height" readonly="1"/>
                 <field name="marble_width"  readonly="1"/>
                 <field name="marble_sqm"    readonly="1"/>
                 <field name="lot_general"   readonly="1"/>
+                <field name="bundle_code"   readonly="1"/> <!-- NUEVO CAMPO -->
             </xpath>
 
-            <!-- ─────────── Tree de líneas ─────────── -->
+            <!-- Tree de líneas -->
             <xpath expr="//field[@name='order_line']/list//field[@name='product_id']" position="after">
-                <!-- Lote seleccionado -->
                 <field name="lot_id"/>
-                <!-- Pedimento (solo lectura) -->
                 <field name="pedimento_number" readonly="1"/>
-                <!-- Datos de mármol -->
                 <field name="marble_height" readonly="1"/>
                 <field name="marble_width"  readonly="1"/>
                 <field name="marble_sqm"    readonly="1"/>
                 <field name="lot_general"   readonly="1"/>
+                <field name="bundle_code"   readonly="1"/> <!-- NUEVO CAMPO -->
             </xpath>
 
         </field>
     </record>
-</odoo>

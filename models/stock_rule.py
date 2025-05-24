@@ -31,6 +31,7 @@ class StockRule(models.Model):
             'marble_width':     values.get('marble_width',  0.0),
             'marble_sqm':       values.get('marble_sqm',    0.0),
             'lot_general':      values.get('lot_general',   ''),
+            'bundle_code':      values.get('bundle_code',   ''),
             'pedimento_number': values.get('pedimento_number', ''),
         })
         return res

@@ -29,6 +29,7 @@ class SaleOrderLine(models.Model):
     marble_width  = fields.Float(related='lot_id.marble_width',  store=True, readonly=True)
     marble_sqm    = fields.Float(related='lot_id.marble_sqm',    store=True, readonly=True)
     lot_general   = fields.Char (related='lot_id.lot_general',   store=True, readonly=True)
+    bundle_code   = fields.Char (related='lot_id.bundle_code',   store=True, readonly=True)
 
     # =====================================================
     # LÓGICA
@@ -67,6 +68,7 @@ class SaleOrderLine(models.Model):
             'marble_width':     self.marble_width,
             'marble_sqm':       self.marble_sqm,
             'lot_general':      self.lot_general,
+            'bundle_code':      self.bundle_code,
             'pedimento_number': self.pedimento_number,
         })
         return vals

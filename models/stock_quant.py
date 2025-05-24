@@ -7,3 +7,4 @@ class StockQuant(models.Model):
     marble_width = fields.Float('Ancho (m)', related='lot_id.marble_width', store=True)
     marble_sqm = fields.Float('Metros Cuadrados', related='lot_id.marble_sqm', store=True)
     lot_general = fields.Char('Lote General', related='lot_id.lot_general', store=True)
+    bundle_code = fields.Char('Bundle Code', related='lot_id.bundle_code', store=True)

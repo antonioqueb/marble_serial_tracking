@@ -5,13 +5,27 @@
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
 
-            <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_id']"
+            <!-- Para la pestaña "Operaciones" (move_ids_without_package), si se muestran detalles del movimiento -->
+            <xpath expr="//field[@name='move_ids_without_package']/tree//field[@name='product_id']"
                    position="after">
-                <field name="lot_id"           readonly="1" invisible="not is_outgoing"/>
-                <field name="marble_height"    readonly="1"/>
-                <field name="marble_width"     readonly="1"/>
-                <field name="marble_sqm"       readonly="1"/>
-                <field name="lot_general"      readonly="1"/>
+                <!-- Nota: lot_id en stock.move es el que se espera usar/crear, no necesariamente el final -->
+                <field name="lot_id" readonly="1" invisible="not is_outgoing"/>
+                <field name="marble_height" readonly="1"/>
+                <field name="marble_width" readonly="1"/>
+                <field name="marble_sqm" readonly="1"/>
+                <field name="lot_general" readonly="1"/>
+                <field name="bundle_code" readonly="1"/> <!-- NUEVO CAMPO -->
+            </xpath>
+
+            <!-- Para la pestaña "Operaciones Detalladas" (move_line_ids_without_package), que es más común para estos datos -->
+            <xpath expr="//field[@name='move_line_ids_without_package']/tree//field[@name='lot_id']"
+                   position="after">
+                <!-- Aquí lot_id es el que realmente se está moviendo o se ha asignado -->
+                <field name="marble_height" readonly="1"/>
+                <field name="marble_width" readonly="1"/>
+                <field name="marble_sqm" readonly="1"/>
+                <field name="lot_general" readonly="1"/>
+                <field name="bundle_code" readonly="1"/> <!-- NUEVO CAMPO -->
             </xpath>
 
         </field>

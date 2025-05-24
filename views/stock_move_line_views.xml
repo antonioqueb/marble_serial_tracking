@@ -10,6 +10,8 @@
                 <field name="marble_width"/>
                 <field name="marble_sqm"/>
                 <field name="lot_general"/>
+                <field name="bundle_code"/> <!-- NUEVO CAMPO -->
+
             </xpath>
 
         </field>

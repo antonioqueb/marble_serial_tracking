@@ -15,6 +15,7 @@ class StockMove(models.Model):
     marble_width = fields.Float('Ancho (m)')
     marble_sqm = fields.Float('Metros Cuadrados')
     lot_general = fields.Char('Lote General')
+    bundle_code = fields.Char('Bundle Code')
 
     # Campo computado para distinguir entregas
     is_outgoing = fields.Boolean(
@@ -40,6 +41,7 @@ class StockMove(models.Model):
             'marble_width': self.marble_width,
             'marble_sqm': self.marble_sqm,
             'lot_general': self.lot_general,
+            'bundle_code': self.bundle_code,
         })
         _logger.info(f"Move line creado con valores: {vals}")
         return vals
@@ -63,6 +65,8 @@ class StockMove(models.Model):
                     line.marble_sqm = move.marble_sqm
                 if not line.lot_general:
                     line.lot_general = move.lot_general
+                if not line.bundle_code:
+                    line.bundle_code = move.bundle_code
         return res
 
     def _action_assign(self):

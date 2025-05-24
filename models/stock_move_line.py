@@ -13,6 +13,7 @@ class StockMoveLine(models.Model):
     marble_width  = fields.Float('Ancho (m)')
     marble_sqm    = fields.Float('Metros Cuadrados')
     lot_general   = fields.Char('Lote General')
+    bundle_code   = fields.Char('Bundle Code')
 
     # ─────────── Creación automática de lote ───────────
     @api.model_create_multi
@@ -35,6 +36,8 @@ class StockMoveLine(models.Model):
             # ► Sólo si aún no hay lote y viene `lot_general`
             if vals.get('lot_id') or not vals.get('lot_general'):
                 continue
+
+            bundle_code_val = vals.get('bundle_code')
 
             # ► Verificar que la línea pertenezca a un picking de entrada
             picking_code = vals.get('picking_code')  # cuando viene del escáner
@@ -74,23 +77,12 @@ class StockMoveLine(models.Model):
                 'marble_width':  vals.get('marble_width'),
                 'marble_sqm':    vals.get('marble_sqm'),
                 'lot_general':   lot_general,
+                'bundle_code':   bundle_code_val,
             }).id
-            _logger.info(
-                "[LOT-AUTO] Creado lote %s para producto %s (general=%s)",
-                lot_name, product_id, lot_general
-            )
+           
 
         # 2) Crear las líneas normalmente
         move_lines = super().create(vals_list)
 
-        # 🔸 POST-LOG
-        for line in move_lines:
-            _logger.debug(
-                "[SML-CREATE|POST] line_id=%s lot=%s height=%s width=%s sqm=%s",
-                line.id,
-                line.lot_id.name,
-                line.marble_height,
-                line.marble_width,
-                line.marble_sqm,
-            )
+       
         return move_lines

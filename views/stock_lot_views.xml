@@ -1,28 +1,56 @@
 <odoo>
-  <record id="view_sale_order_form_marble_inherit" model="ir.ui.view">
-    <field name="name">sale.order.form.marble</field>
-    <field name="model">sale.order</field>
-    <field name="inherit_id" ref="sale.view_order_form"/>
-    <field name="arch" type="xml">
+    <!-- Vista Formulario para stock.lot -->
+    <record id="view_production_lot_form_marble_inherit" model="ir.ui.view">
+        <field name="name">stock.lot.form.marble</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <!-- Buscamos un grupo existente para añadir los campos o creamos uno nuevo.
+                 Este xpath asume que hay un grupo donde quieres añadir más detalles.
+                 Si no, podrías añadir un nuevo <group> completo.
+                 Por ejemplo, si quieres añadirlo después del campo 'product_qty': -->
+            <xpath expr="//field[@name='product_qty']" position="after">
+                 <group string="Marble Details" name="marble_details_group">
+                    <field name="marble_height"/>
+                    <field name="marble_width"/>
+                    <field name="marble_sqm" readonly="1"/>
+                    <field name="lot_general"/>
+                    <field name="bundle_code"/> <!-- NUEVO CAMPO -->
+                 </group>
+            </xpath>
+            <!-- Alternativamente, si quieres añadirlo en una nueva pestaña o sección,
+                 ajusta el xpath. Por ejemplo, para añadir después del primer grupo:
+            <xpath expr="//sheet/group[1]" position="after">
+                <group string="Marble Details">
+                    <group>
+                        <field name="marble_height"/>
+                        <field name="marble_width"/>
+                        <field name="marble_sqm" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="lot_general"/>
+                        <field name="bundle_code"/>
+                    </group>
+                </group>
+            </xpath>
+            -->
+        </field>
+    </record>
 
-      <!-- formulario de línea -->
-      <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="after">
-        <field name="lot_id" domain="[('product_id', '=', product_id)]"/>
-        <field name="marble_height"    readonly="1"/>
-        <field name="marble_width"     readonly="1"/>
-        <field name="marble_sqm"       readonly="1"/>
-        <field name="lot_general"      readonly="1"/>
-      </xpath>
-
-      <!-- tree de líneas -->
-      <xpath expr="//field[@name='order_line']/list//field[@name='product_id']" position="after">
-        <field name="lot_id"/>
-        <field name="marble_height"    readonly="1"/>
-        <field name="marble_width"     readonly="1"/>
-        <field name="marble_sqm"       readonly="1"/>
-        <field name="lot_general"      readonly="1"/>
-      </xpath>
-
-    </field>
-  </record>
+    <!-- Vista Árbol para stock.lot -->
+    <record id="view_production_lot_tree_marble_inherit" model="ir.ui.view">
+        <field name="name">stock.lot.tree.marble</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_tree"/>
+        <field name="arch" type="xml">
+            <!-- Añadir después de un campo existente, por ejemplo 'product_id' o 'name' -->
+            <field name="product_id" position="after">
+                <field name="marble_height" optional="hide"/>
+                <field name="marble_width" optional="hide"/>
+                <field name="marble_sqm" optional="hide"/>
+                <field name="lot_general" optional="show"/>
+                <field name="bundle_code" optional="show"/> <!-- NUEVO CAMPO -->
+            </field>
+        </field>
+    </record>
 </odoo>
