@@ -12,7 +12,7 @@
             </xpath>
 
             <!-- ─────────── Tree de líneas ─────────── -->
-            <xpath expr="//field[@name='order_line']/list//field[@name='product_template_id']" position="before">
+            <xpath expr="//field[@name='order_line']/list//field[@name='price_unit']" position="before">
                 <field name="price_level"/>
                 <field name="applied_price_per_sqm" readonly="1"/>
             </xpath>
