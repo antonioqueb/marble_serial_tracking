@@ -1,6 +1,5 @@
 # models/sale_order_line_pricing.py
 # Is functional and should be placed in the models directory of your Odoo module.
-# -*- coding: utf-8 -*-
 from odoo import models, fields, api
 import logging
 
