@@ -5,10 +5,10 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
 
-            <!-- ─────────── Formulario de la línea ─────────── -->
-            <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="before">
+            <!-- ─────────── Tree de líneas ─────────── -->
+            <xpath expr="//field[@name='order_line']/list//field[@name='sequence']" position="after">
                 <field name="marble_thickness" readonly="1"/>
-                <field name="lot_id" domain="[('product_id', '=', product_id)]"/>
+                <field name="lot_id"/>
                 <field name="pedimento_number" readonly="1"/>
                 <field name="marble_height" readonly="1"/>
                 <field name="marble_width" readonly="1"/>
@@ -17,10 +17,10 @@
                 <field name="bundle_code" readonly="1"/>
             </xpath>
 
-            <!-- ─────────── Tree de líneas ─────────── -->
-            <xpath expr="//field[@name='order_line']/list//field[@name='sequence']" position="after">
+            <!-- ─────────── Formulario: Mantener before ─────────── -->
+            <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="before">
                 <field name="marble_thickness" readonly="1"/>
-                <field name="lot_id"/>
+                <field name="lot_id" domain="[('product_id', '=', product_id)]"/>
                 <field name="pedimento_number" readonly="1"/>
                 <field name="marble_height" readonly="1"/>
                 <field name="marble_width" readonly="1"/>
