@@ -79,14 +79,14 @@ class StockMove(models.Model):
                     line.pedimento_number = move.pedimento_number
         return res
 
-    def _action_assign(self):
+    def _action_assign(self, force_qty=None):
         """
         Sobrescribimos la asignación de stock para forzar que,
         si hay un lote específico 'so_lot_id' proveniente de la venta,
         se reserve en ese lote y no según la política FIFO (PEPS).
         """
         # Primero dejamos que Odoo haga la reserva estándar
-        super()._action_assign()
+        super()._action_assign(force_qty=force_qty)
 
         # Luego forzamos la reserva en el lote si 'so_lot_id' está presente
         for move in self.filtered(lambda m: m.state in ('confirmed','partially_available','waiting')):
