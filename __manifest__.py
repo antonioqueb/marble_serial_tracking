@@ -17,6 +17,7 @@
         'views/sale_order_views.xml',
         'views/product_template_views.xml',   
         'views/sale_order_pricing_views.xml',
+        'views/stock_lot_views.xml',
     ],
     'installable': True,
     'application': False,
