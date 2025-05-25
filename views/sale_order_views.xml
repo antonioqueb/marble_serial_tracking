@@ -7,8 +7,9 @@
 
             <!-- ─────────── Formulario de la línea ─────────── -->
             <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="before">
-                <field name="marble_thickness" readonly="1"/>
                 <field name="lot_id" domain="[('product_id', '=', product_id)]"/>
+                <field name="marble_thickness" readonly="1"/>
+                
                 <field name="pedimento_number" readonly="1"/>
                 <field name="marble_height" readonly="1"/>
                 <field name="marble_width" readonly="1"/>
@@ -19,8 +20,9 @@
 
             <!-- ─────────── Tree de líneas ─────────── -->
             <xpath expr="//field[@name='order_line']/list//field[@name='sequence']" position="after">
-                <field name="marble_thickness" readonly="1" optional="show"/>
                 <field name="lot_id" optional="show"/>
+                <field name="marble_thickness" readonly="1" optional="show"/>
+                
                 <field name="pedimento_number" readonly="1" optional="show"/>
                 <field name="marble_height" readonly="1" optional="show"/>
                 <field name="marble_width" readonly="1" optional="show"/>
