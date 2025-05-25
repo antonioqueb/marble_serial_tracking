@@ -8,7 +8,10 @@ class StockMove(models.Model):
 
     # Campos de tracking desde la venta
     so_lot_id = fields.Many2one('stock.lot', string="Lote Forzado (Venta)")
-    lot_id = fields.Many2one('stock.lot', string='Número de Serie (Venta)')  # Visible solo en entregas (ver vista)
+    lot_id = fields.Many2one('stock.lot', string='Número de Serie (Venta)')
+    
+    # Campo para pedimento (agregado)
+    pedimento_number = fields.Char('Número de Pedimento', size=18)
 
     # Campos de mármol
     marble_height = fields.Float('Altura (m)')
@@ -17,7 +20,6 @@ class StockMove(models.Model):
     lot_general = fields.Char('Lote General')
     bundle_code = fields.Char('Bundle Code')
     marble_thickness = fields.Float('Grosor (cm)')
-
 
     # Campo computado para distinguir entregas
     is_outgoing = fields.Boolean(
@@ -34,7 +36,7 @@ class StockMove(models.Model):
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
         """
         Mantiene la lógica original de crear la move line 
-        con los campos de mármol y el lote vinculado a la venta.
+        con los campos de mármol, el lote vinculado a la venta y el pedimento.
         """
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
         vals.update({
@@ -45,6 +47,7 @@ class StockMove(models.Model):
             'lot_general': self.lot_general,
             'bundle_code': self.bundle_code,
             'marble_thickness': self.marble_thickness,
+            'pedimento_number': self.pedimento_number,  # Agregado
         })
         _logger.info(f"Move line creado con valores: {vals}")
         return vals
@@ -53,7 +56,7 @@ class StockMove(models.Model):
         """
         Tras crear las líneas, completa los valores de mármol
         si vienen vacíos en el move line. Incluye la asignación
-        del lote asociado a la venta.
+        del lote asociado a la venta y el pedimento.
         """
         res = super()._create_move_lines()
         for move in self:
@@ -72,6 +75,8 @@ class StockMove(models.Model):
                     line.bundle_code = move.bundle_code
                 if not line.marble_thickness:
                     line.marble_thickness = move.marble_thickness
+                if not line.pedimento_number:  # Agregado
+                    line.pedimento_number = move.pedimento_number
         return res
 
     def _action_assign(self):
@@ -119,5 +124,6 @@ class StockMove(models.Model):
                             'location_dest_id': move.location_dest_id.id,
                             'lot_id': lot.id,
                             'product_uom_qty': qty_to_reserve,
+                            'pedimento_number': move.pedimento_number,  # Agregado
                         })
         return True

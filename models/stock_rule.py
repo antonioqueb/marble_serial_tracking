@@ -25,7 +25,7 @@ class StockRule(models.Model):
             res['so_lot_id'] = forced_lot
             res['lot_id']    = forced_lot
 
-        # Datos adicionales
+        # Datos adicionales incluyendo pedimento_number
         res.update({
             'marble_height':    values.get('marble_height', 0.0),
             'marble_width':     values.get('marble_width',  0.0),

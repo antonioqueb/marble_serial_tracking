@@ -9,12 +9,12 @@
                    position="after">
                 <field name="marble_thickness" readonly="1"/>
                 <field name="lot_id"           readonly="1" invisible="not is_outgoing"/>
+                <field name="pedimento_number" readonly="1"/>
                 <field name="marble_height"    readonly="1"/>
                 <field name="marble_width"     readonly="1"/>
                 <field name="marble_sqm"       readonly="1"/>
                 <field name="lot_general"      readonly="1"/>
-                <field name="bundle_code" readonly="1"/> <!-- NUEVO CAMPO -->
-
+                <field name="bundle_code"      readonly="1"/>
             </xpath>
 
         </field>
