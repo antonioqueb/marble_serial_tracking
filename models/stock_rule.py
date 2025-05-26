@@ -10,7 +10,7 @@ class StockRule(models.Model):
     ):
         """
         *Extendemos* la salida original para inyectar:
-        • Lote forzado
+        • Lote forzado (solo si existe)
         • Datos de mármol
         • Número de pedimento
         """
@@ -19,7 +19,7 @@ class StockRule(models.Model):
             name, origin, company_id, values
         )
 
-        # Lote forzado (si viene desde la venta)
+        # Lote forzado (solo si viene desde la venta Y existe)
         forced_lot = values.get('lot_id')
         if forced_lot:
             res['so_lot_id'] = forced_lot

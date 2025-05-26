@@ -28,6 +28,7 @@ class SaleOrderLine(models.Model):
         Calcula automáticamente el precio unitario basado en:
         - m² del lote seleccionado
         - Nivel de precio elegido del producto
+        Solo aplica cuando hay un lote seleccionado
         """
         for line in self:
             if line.lot_id and line.product_id:
@@ -55,3 +56,6 @@ class SaleOrderLine(models.Model):
                         f"[PRECIO-AUTO] SO Line {line.id}: "
                         f"Sin precio configurado para nivel '{line.price_level}'"
                     )
+            else:
+                # Si no hay lote, el usuario debe ingresar el precio manualmente
+                line.applied_price_per_sqm = 0.0

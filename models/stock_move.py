@@ -38,8 +38,12 @@ class StockMove(models.Model):
         con los campos de mármol, el lote vinculado a la venta y el pedimento.
         """
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
+        
+        # Solo agregar lot_id si existe
+        if self.lot_id:
+            vals['lot_id'] = self.lot_id.id
+            
         vals.update({
-            'lot_id': self.lot_id.id,
             'marble_height': self.marble_height,
             'marble_width': self.marble_width,
             'marble_sqm': self.marble_sqm,

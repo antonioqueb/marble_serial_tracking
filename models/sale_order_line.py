@@ -1,6 +1,7 @@
 # models/sale_order_line.py
 
-from odoo import models, fields, api
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -49,16 +50,69 @@ class SaleOrderLine(models.Model):
     )
 
     # ---------- Datos de mármol (ya existentes, relacionados con el lote) ----------
-    marble_height     = fields.Float(related='lot_id.marble_height',      store=True, readonly=True)
-    marble_width      = fields.Float(related='lot_id.marble_width',       store=True, readonly=True)
-    marble_sqm        = fields.Float(related='lot_id.marble_sqm',         store=True, readonly=True)
-    lot_general       = fields.Char (related='lot_id.lot_general',        store=True, readonly=True)
-    bundle_code       = fields.Char (related='lot_id.bundle_code',        store=True, readonly=True)
-    marble_thickness  = fields.Float(related='lot_id.marble_thickness',   store=True, readonly=True)
+    # Cambiar de related a compute para manejar cuando no hay lote
+    marble_height = fields.Float(
+        string='Altura (m)',
+        compute='_compute_marble_fields',
+        store=True,
+        readonly=True
+    )
+    marble_width = fields.Float(
+        string='Ancho (m)',
+        compute='_compute_marble_fields',
+        store=True,
+        readonly=True
+    )
+    marble_sqm = fields.Float(
+        string='Metros Cuadrados',
+        compute='_compute_marble_fields',
+        store=True,
+        readonly=True
+    )
+    lot_general = fields.Char(
+        string='Lote General',
+        compute='_compute_marble_fields',
+        store=True,
+        readonly=True
+    )
+    bundle_code = fields.Char(
+        string='Bundle Code',
+        compute='_compute_marble_fields',
+        store=True,
+        readonly=True
+    )
+    marble_thickness = fields.Float(
+        string='Grosor (cm)',
+        compute='_compute_marble_fields',
+        store=True,
+        readonly=True
+    )
 
     # =====================================================
     # LÓGICA
     # =====================================================
+
+    @api.depends('lot_id')
+    def _compute_marble_fields(self):
+        """
+        Si hay lote, toma los valores del lote.
+        Si no hay lote, establece valores por defecto.
+        """
+        for line in self:
+            if line.lot_id:
+                line.marble_height = line.lot_id.marble_height
+                line.marble_width = line.lot_id.marble_width
+                line.marble_sqm = line.lot_id.marble_sqm
+                line.lot_general = line.lot_id.lot_general
+                line.bundle_code = line.lot_id.bundle_code
+                line.marble_thickness = line.lot_id.marble_thickness
+            else:
+                line.marble_height = 0.0
+                line.marble_width = 0.0
+                line.marble_sqm = 0.0
+                line.lot_general = ''
+                line.bundle_code = ''
+                line.marble_thickness = 0.0
 
     @api.depends('lot_id')
     def _compute_pedimento_number(self):
@@ -84,11 +138,29 @@ class SaleOrderLine(models.Model):
                 line.id, line.lot_id.name if line.lot_id else '-', ped or '∅'
             )
 
+    @api.constrains('lot_id', 'product_id')
+    def _check_lot_requirement(self):
+        """
+        Validación: Si hay stock disponible, debe seleccionarse un lote
+        Solo aplica si el producto usa tracking
+        """
+        for line in self:
+            if line.product_id and line.product_id.tracking != 'none':
+                if line.available_lot_ids and not line.lot_id:
+                    raise ValidationError(
+                        _('El producto "%s" tiene stock disponible. '
+                          'Debe seleccionar un lote específico.') % line.product_id.name
+                    )
+
     # ---------- Propagación al procurement ----------
     def _prepare_procurement_values(self, group_id=False):
         vals = super()._prepare_procurement_values(group_id)
+        
+        # Solo propagar lot_id si existe
+        if self.lot_id:
+            vals['lot_id'] = self.lot_id.id
+            
         vals.update({
-            'lot_id':           self.lot_id.id,
             'marble_height':    self.marble_height,
             'marble_width':     self.marble_width,
             'marble_sqm':       self.marble_sqm,
