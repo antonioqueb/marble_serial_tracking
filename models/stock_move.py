@@ -10,8 +10,7 @@ class StockMove(models.Model):
     so_lot_id = fields.Many2one('stock.lot', string="Lote Forzado (Venta)")
     lot_id = fields.Many2one('stock.lot', string='Número de Serie (Venta)')
     
-    # Campo para pedimento (agregado)
-    pedimento_number = fields.Char('Número de Pedimento', size=18)
+    # NO definir pedimento_number aquí - ya está en marble_pedimento_tracking
 
     # Campos de mármol
     marble_height = fields.Float('Altura (m)')
@@ -47,8 +46,13 @@ class StockMove(models.Model):
             'lot_general': self.lot_general,
             'bundle_code': self.bundle_code,
             'marble_thickness': self.marble_thickness,
-            'pedimento_number': self.pedimento_number,  # Agregado
+            # pedimento_number se propaga desde marble_pedimento_tracking
         })
+        
+        # Si existe pedimento_number (desde el otro módulo), propagarlo
+        if hasattr(self, 'pedimento_number') and self.pedimento_number:
+            vals['pedimento_number'] = self.pedimento_number
+            
         _logger.info(f"Move line creado con valores: {vals}")
         return vals
 
@@ -75,8 +79,10 @@ class StockMove(models.Model):
                     line.bundle_code = move.bundle_code
                 if not line.marble_thickness:
                     line.marble_thickness = move.marble_thickness
-                if not line.pedimento_number:  # Agregado
-                    line.pedimento_number = move.pedimento_number
+                # Propagar pedimento si existe
+                if hasattr(move, 'pedimento_number') and hasattr(line, 'pedimento_number'):
+                    if not line.pedimento_number and move.pedimento_number:
+                        line.pedimento_number = move.pedimento_number
         return res
 
     def _action_assign(self, force_qty=None):
@@ -116,7 +122,7 @@ class StockMove(models.Model):
                     if existing_line:
                         existing_line.product_uom_qty += qty_to_reserve
                     else:
-                        self.env['stock.move.line'].create({
+                        line_vals = {
                             'move_id': move.id,
                             'product_id': move.product_id.id,
                             'product_uom_id': move.product_uom.id,
@@ -124,6 +130,10 @@ class StockMove(models.Model):
                             'location_dest_id': move.location_dest_id.id,
                             'lot_id': lot.id,
                             'product_uom_qty': qty_to_reserve,
-                            'pedimento_number': move.pedimento_number,  # Agregado
-                        })
+                        }
+                        # Agregar pedimento si existe
+                        if hasattr(move, 'pedimento_number') and move.pedimento_number:
+                            line_vals['pedimento_number'] = move.pedimento_number
+                        
+                        self.env['stock.move.line'].create(line_vals)
         return True
