@@ -1,19 +1,43 @@
 # models/sale_order_line.py
+
 from odoo import models, fields, api
 import logging
 
 _logger = logging.getLogger(__name__)
 
-
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
 
-    # ---------- Selección de lote ----------
+    # ---------- Selección de lote solo entre lotes DISPONIBLES ----------
     lot_id = fields.Many2one(
         'stock.lot',
         string='Número de Serie',
-        domain="[('product_id', '=', product_id)]",
+        domain="[('id', 'in', available_lot_ids)]",
     )
+
+    available_lot_ids = fields.Many2many(
+        'stock.lot',
+        string='Lotes Disponibles',
+        compute='_compute_available_lots',
+    )
+
+    @api.depends('product_id')
+    def _compute_available_lots(self):
+        """
+        Solo mostrar lotes con inventario disponible y en ubicaciones internas.
+        """
+        Quant = self.env['stock.quant']
+        for line in self:
+            if line.product_id:
+                quants = Quant.search([
+                    ('product_id', '=', line.product_id.id),
+                    ('quantity', '>', 0),
+                    ('location_id.usage', '=', 'internal'),
+                    ('lot_id', '!=', False),
+                ])
+                line.available_lot_ids = quants.mapped('lot_id')
+            else:
+                line.available_lot_ids = False
 
     # ---------- Número de pedimento ----------
     pedimento_number = fields.Char(
@@ -24,13 +48,14 @@ class SaleOrderLine(models.Model):
         readonly=True,
     )
 
-    # ---------- Datos de mármol (ya existentes) ----------
-    marble_height = fields.Float(related='lot_id.marble_height', store=True, readonly=True)
-    marble_width  = fields.Float(related='lot_id.marble_width',  store=True, readonly=True)
-    marble_sqm    = fields.Float(related='lot_id.marble_sqm',    store=True, readonly=True)
-    lot_general   = fields.Char (related='lot_id.lot_general',   store=True, readonly=True)
-    bundle_code   = fields.Char (related='lot_id.bundle_code',   store=True, readonly=True)
-    marble_thickness = fields.Float(related='lot_id.marble_thickness', store=True, readonly=True)
+    # ---------- Datos de mármol (ya existentes, relacionados con el lote) ----------
+    marble_height     = fields.Float(related='lot_id.marble_height',      store=True, readonly=True)
+    marble_width      = fields.Float(related='lot_id.marble_width',       store=True, readonly=True)
+    marble_sqm        = fields.Float(related='lot_id.marble_sqm',         store=True, readonly=True)
+    lot_general       = fields.Char (related='lot_id.lot_general',        store=True, readonly=True)
+    bundle_code       = fields.Char (related='lot_id.bundle_code',        store=True, readonly=True)
+    marble_thickness  = fields.Float(related='lot_id.marble_thickness',   store=True, readonly=True)
+
     # =====================================================
     # LÓGICA
     # =====================================================
@@ -38,7 +63,7 @@ class SaleOrderLine(models.Model):
     @api.depends('lot_id')
     def _compute_pedimento_number(self):
         """
-        Cuando el usuario selecciona un lote buscamos cualquier quant
+        Cuando el usuario selecciona un lote, buscamos cualquier quant
         (con existencias positivas) que tenga asignado un pedimento.
         Tomamos el primero que aparezca ―es el mismo valor para todas
         las existencias del lote― y lo almacenamos en la línea.
