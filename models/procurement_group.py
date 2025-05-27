@@ -16,15 +16,12 @@ class StockRule(models.Model):
         normal_procurements = []
         
         for procurement in procurements:
-            # Obtener product_id de manera segura
+            # Obtener product_id de manera segura desde el procurement
             try:
-                if hasattr(procurement, 'product_id'):
-                    product_id = procurement.product_id
-                else:
-                    # Si es una tupla, intentar obtener el product_id
-                    product_id = procurement[1] if len(procurement) > 1 else None
-                    
-                if product_id and product_id.tracking != 'none':
+                # En Odoo 18, procurement es un namedtuple con: (product_id, product_qty, product_uom, location_id, name, origin, company_id, values)
+                product_id = procurement.product_id
+                
+                if product_id.tracking != 'none':
                     # Cada producto con tracking va en su propio grupo (no se agrupa)
                     merged_procurements.append([procurement])
                     _logger.info(f"Producto {product_id.name} con tracking - procesamiento individual")
@@ -48,49 +45,6 @@ class StockRule(models.Model):
                     merged_procurements.append([proc])
             
         return merged_procurements
-    
-    def _run_buy(self, procurements):
-        """
-        Sobrescribir completamente para manejar productos con tracking individualmente
-        """
-        # Separar procurements por tracking
-        tracking_procurements = []
-        normal_procurements = []
-        
-        for procurement in procurements:
-            # Los procurements pueden ser objetos Procurement o tuplas
-            # Necesitamos obtener el product_id correctamente
-            if hasattr(procurement, 'product_id'):
-                product_id = procurement.product_id
-            else:
-                # Si es una tupla o namedtuple, el product_id podría estar en diferentes posiciones
-                try:
-                    product_id = procurement.product_id if hasattr(procurement, 'product_id') else procurement[1]
-                except (IndexError, AttributeError):
-                    _logger.warning(f"No se pudo obtener product_id de procurement: {procurement}")
-                    normal_procurements.append(procurement)
-                    continue
-            
-            if product_id.tracking != 'none':
-                tracking_procurements.append(procurement)
-                _logger.info(f"Procurement con tracking detectado: {product_id.name}")
-            else:
-                normal_procurements.append(procurement)
-        
-        # Procesar productos con tracking UNO POR UNO
-        for procurement in tracking_procurements:
-            try:
-                product_name = procurement.product_id.name if hasattr(procurement, 'product_id') else procurement[1].name
-                _logger.info(f"Procesando individualmente procurement para {product_name}")
-                super()._run_buy([procurement])  # Procesar cada uno por separado
-            except Exception as e:
-                _logger.error(f"Error procesando procurement individual: {e}")
-                # Si falla, procesarlo con el método normal
-                normal_procurements.append(procurement)
-        
-        # Procesar productos sin tracking normalmente (con agrupamiento)
-        if normal_procurements:
-            super()._run_buy(normal_procurements)
     
     def _prepare_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, po):
         """
@@ -120,26 +74,27 @@ class StockRule(models.Model):
             
         return res
     
-    def _find_suitable_po_line(self, procurement, po):
+    def _make_po_select_supplier(self, values, suppliers):
         """
-        Para productos con tracking: NUNCA encontrar línea existente
+        Sobrescribir para evitar agrupamiento en la selección de proveedor
         """
-        try:
-            # Obtener product_id de manera segura
-            if hasattr(procurement, 'product_id'):
-                product_id = procurement.product_id
-            else:
-                product_id = procurement[1] if len(procurement) > 1 else None
-                
-            if product_id and product_id.tracking != 'none':
-                _logger.info(f"Producto {product_id.name} con tracking - NO buscar línea existente")
-                return self.env['purchase.order.line']  # Retorna recordset vacío
-                
-        except Exception as e:
-            _logger.warning(f"Error en _find_suitable_po_line: {e}")
+        res = super()._make_po_select_supplier(values, suppliers)
+        
+        # Si hay datos de mármol en values, significa que es un producto con tracking
+        if values.get('marble_height') or values.get('marble_width') or values.get('lot_general'):
+            # Forzar que se cree una nueva PO o que no se reutilice línea existente
+            _logger.info("Procurement con datos de mármol - evitando reutilización de PO")
+            
+        return res
+    
+    def _update_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, line):
+        """
+        Sobrescribir para productos con tracking: NUNCA actualizar línea existente
+        """
+        if product_id.tracking != 'none':
+            _logger.info(f"Producto {product_id.name} con tracking - NO actualizar línea existente")
+            # No hacer nada, esto forzará la creación de una nueva línea
+            return {}
             
         # Para productos sin tracking, comportamiento normal
-        if hasattr(super(), '_find_suitable_po_line'):
-            return super()._find_suitable_po_line(procurement, po)
-        else:
-            return self.env['purchase.order.line']
+        return super()._update_purchase_order_line(product_id, product_qty, product_uom, company_id, values, line)
