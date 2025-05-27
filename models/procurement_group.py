@@ -13,22 +13,39 @@ class StockRule(models.Model):
         Cada procurement debe generar su propia línea de PO
         """
         merged_procurements = []
+        normal_procurements = []
         
         for procurement in procurements:
-            if procurement.product_id.tracking != 'none':
-                # Cada producto con tracking va en su propio grupo (no se agrupa)
-                merged_procurements.append([procurement])
-                _logger.info(f"Producto {procurement.product_id.name} con tracking - procesamiento individual")
-            else:
-                # Para productos sin tracking, mantener comportamiento normal
-                # Los agregamos a una lista temporal para procesarlos con super()
-                pass
+            # Obtener product_id de manera segura
+            try:
+                if hasattr(procurement, 'product_id'):
+                    product_id = procurement.product_id
+                else:
+                    # Si es una tupla, intentar obtener el product_id
+                    product_id = procurement[1] if len(procurement) > 1 else None
+                    
+                if product_id and product_id.tracking != 'none':
+                    # Cada producto con tracking va en su propio grupo (no se agrupa)
+                    merged_procurements.append([procurement])
+                    _logger.info(f"Producto {product_id.name} con tracking - procesamiento individual")
+                else:
+                    # Para productos sin tracking, agregar a lista normal
+                    normal_procurements.append(procurement)
+                    
+            except Exception as e:
+                _logger.warning(f"Error procesando procurement en merge: {e}, agregando a normal_procurements")
+                normal_procurements.append(procurement)
         
         # Procesar productos sin tracking con comportamiento normal
-        normal_procurements = [p for p in procurements if p.product_id.tracking == 'none']
         if normal_procurements:
-            normal_merged = super()._get_procurements_to_merge(normal_procurements)
-            merged_procurements.extend(normal_merged)
+            try:
+                normal_merged = super()._get_procurements_to_merge(normal_procurements)
+                merged_procurements.extend(normal_merged)
+            except Exception as e:
+                _logger.error(f"Error en super()._get_procurements_to_merge: {e}")
+                # Fallback: agregar cada procurement normal individualmente
+                for proc in normal_procurements:
+                    merged_procurements.append([proc])
             
         return merged_procurements
     
@@ -41,15 +58,35 @@ class StockRule(models.Model):
         normal_procurements = []
         
         for procurement in procurements:
-            if procurement.product_id.tracking != 'none':
+            # Los procurements pueden ser objetos Procurement o tuplas
+            # Necesitamos obtener el product_id correctamente
+            if hasattr(procurement, 'product_id'):
+                product_id = procurement.product_id
+            else:
+                # Si es una tupla o namedtuple, el product_id podría estar en diferentes posiciones
+                try:
+                    product_id = procurement.product_id if hasattr(procurement, 'product_id') else procurement[1]
+                except (IndexError, AttributeError):
+                    _logger.warning(f"No se pudo obtener product_id de procurement: {procurement}")
+                    normal_procurements.append(procurement)
+                    continue
+            
+            if product_id.tracking != 'none':
                 tracking_procurements.append(procurement)
+                _logger.info(f"Procurement con tracking detectado: {product_id.name}")
             else:
                 normal_procurements.append(procurement)
         
         # Procesar productos con tracking UNO POR UNO
         for procurement in tracking_procurements:
-            _logger.info(f"Procesando individualmente procurement para {procurement.product_id.name}")
-            super()._run_buy([procurement])  # Procesar cada uno por separado
+            try:
+                product_name = procurement.product_id.name if hasattr(procurement, 'product_id') else procurement[1].name
+                _logger.info(f"Procesando individualmente procurement para {product_name}")
+                super()._run_buy([procurement])  # Procesar cada uno por separado
+            except Exception as e:
+                _logger.error(f"Error procesando procurement individual: {e}")
+                # Si falla, procesarlo con el método normal
+                normal_procurements.append(procurement)
         
         # Procesar productos sin tracking normalmente (con agrupamiento)
         if normal_procurements:
@@ -87,9 +124,19 @@ class StockRule(models.Model):
         """
         Para productos con tracking: NUNCA encontrar línea existente
         """
-        if procurement.product_id.tracking != 'none':
-            _logger.info(f"Producto {procurement.product_id.name} con tracking - NO buscar línea existente")
-            return self.env['purchase.order.line']  # Retorna recordset vacío
+        try:
+            # Obtener product_id de manera segura
+            if hasattr(procurement, 'product_id'):
+                product_id = procurement.product_id
+            else:
+                product_id = procurement[1] if len(procurement) > 1 else None
+                
+            if product_id and product_id.tracking != 'none':
+                _logger.info(f"Producto {product_id.name} con tracking - NO buscar línea existente")
+                return self.env['purchase.order.line']  # Retorna recordset vacío
+                
+        except Exception as e:
+            _logger.warning(f"Error en _find_suitable_po_line: {e}")
             
         # Para productos sin tracking, comportamiento normal
         if hasattr(super(), '_find_suitable_po_line'):
