@@ -11,22 +11,29 @@ class StockRule(models.Model):
         """
         Sobrescribir para evitar que se agrupen las líneas de productos con tracking
         """
-        # Filtrar procurements para excluir productos con tracking
-        procurements_to_merge = []
+        # Separar procurements por tipo de tracking
+        trackable_procurements = []
+        normal_procurements = []
         
         for procurement in procurements:
-            # Si el producto NO tiene tracking, puede ser agrupado
-            if procurement.product_id.tracking == 'none':
-                procurements_to_merge.append(procurement)
+            if procurement.product_id.tracking != 'none':
+                trackable_procurements.append(procurement)
+                _logger.info(f"Producto {procurement.product_id.name} tiene tracking - se procesará individualmente")
             else:
-                _logger.info(f"Producto {procurement.product_id.name} tiene tracking - no se agrupará")
+                normal_procurements.append(procurement)
         
-        # Si no hay procurements para agrupar, devolver lista vacía
-        if not procurements_to_merge:
-            return []
+        # Procesar productos con tracking individualmente (sin agrupamiento)
+        merged_procurements = []
+        for procurement in trackable_procurements:
+            # Cada procurement con tracking se mantiene separado
+            merged_procurements.append([procurement])
+        
+        # Para productos sin tracking, usar el comportamiento normal de agrupamiento
+        if normal_procurements:
+            normal_merged = super()._get_procurements_to_merge(normal_procurements)
+            merged_procurements.extend(normal_merged)
             
-        # Para productos sin tracking, usar el comportamiento normal
-        return super()._get_procurements_to_merge(procurements_to_merge)
+        return merged_procurements
     
     def _prepare_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, po):
         """
