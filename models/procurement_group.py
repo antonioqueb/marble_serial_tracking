@@ -7,16 +7,26 @@ _logger = logging.getLogger(__name__)
 class StockRule(models.Model):
     _inherit = 'stock.rule'
     
-    def _get_procurements_to_merge(self, product_id, product_qty, product_uom, location_id, name, origin, company_id, values):
+    def _get_procurements_to_merge(self, procurements):
         """
         Sobrescribir para evitar que se agrupen las líneas de productos con tracking
         """
-        # Si el producto tiene tracking (mármol), no permitir agrupamiento
-        if product_id.tracking != 'none':
-            return self.env['procurement.group']
+        # Filtrar procurements para excluir productos con tracking
+        procurements_to_merge = []
         
-        # Para otros productos, mantener comportamiento normal
-        return super()._get_procurements_to_merge(product_id, product_qty, product_uom, location_id, name, origin, company_id, values)
+        for procurement in procurements:
+            # Si el producto NO tiene tracking, puede ser agrupado
+            if procurement.product_id.tracking == 'none':
+                procurements_to_merge.append(procurement)
+            else:
+                _logger.info(f"Producto {procurement.product_id.name} tiene tracking - no se agrupará")
+        
+        # Si no hay procurements para agrupar, devolver lista vacía
+        if not procurements_to_merge:
+            return []
+            
+        # Para productos sin tracking, usar el comportamiento normal
+        return super()._get_procurements_to_merge(procurements_to_merge)
     
     def _prepare_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, po):
         """
