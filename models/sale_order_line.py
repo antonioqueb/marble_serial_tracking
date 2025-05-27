@@ -175,18 +175,26 @@ class SaleOrderLine(models.Model):
         """
         Sobrescribir para asegurar que cada línea genere su propio procurement
         """
-        # Si el producto tiene tracking, crear un grupo único para cada línea
-        if self.product_id.tracking != 'none':
-            # Crear un grupo de procurement único para esta línea
-            group = self.env['procurement.group'].create({
-                'name': f"{self.order_id.name}/{self.id}",
-                'sale_id': self.order_id.id,
-                'partner_id': self.order_id.partner_id.id,
-            })
-            
-            # Forzar el uso de este grupo específico
-            self = self.with_context(default_group_id=group.id)
-            
-            _logger.info(f"Creando procurement individual para línea {self.id} con grupo {group.name}")
-            
-        return super()._action_launch_stock_rule(previous_product_uom_qty)
+        # Procesar cada línea individualmente
+        for line in self:
+            # Si el producto tiene tracking, crear un grupo único para cada línea
+            if line.product_id.tracking != 'none':
+                # Crear un grupo de procurement único para esta línea
+                group = self.env['procurement.group'].create({
+                    'name': f"{line.order_id.name}/{line.id}",
+                    'sale_id': line.order_id.id,
+                    'partner_id': line.order_id.partner_id.id,
+                })
+                
+                # Forzar el uso de este grupo específico
+                line_with_context = line.with_context(default_group_id=group.id)
+                
+                _logger.info(f"Creando procurement individual para línea {line.id} con grupo {group.name}")
+                
+                # Llamar al método padre para esta línea específica
+                super(SaleOrderLine, line_with_context)._action_launch_stock_rule(previous_product_uom_qty)
+            else:
+                # Para productos sin tracking, usar el comportamiento normal
+                super(SaleOrderLine, line)._action_launch_stock_rule(previous_product_uom_qty)
+        
+        return True
