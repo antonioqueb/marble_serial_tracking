@@ -7,44 +7,16 @@ _logger = logging.getLogger(__name__)
 class StockRule(models.Model):
     _inherit = 'stock.rule'
     
-    def _get_procurements_to_merge(self, procurements):
+    def _get_procurements_to_merge(self, product_id, product_qty, product_uom, location_id, name, origin, company_id, values):
         """
-        Filtrar los procurements que pueden ser agrupados.
-        Para productos con tracking (mármol), devolver lista vacía para evitar agrupamiento.
+        Sobrescribir para evitar que se agrupen las líneas de productos con tracking
         """
-        procurement_groups = {}
+        # Si el producto tiene tracking (mármol), no permitir agrupamiento
+        if product_id.tracking != 'none':
+            return self.env['procurement.group']
         
-        for procurement in procurements:
-            # Si el producto tiene tracking, no permitir agrupamiento
-            if procurement.product_id.tracking != 'none':
-                _logger.info(f"Producto {procurement.product_id.name} tiene tracking - no se agrupará")
-                continue
-                
-            # Para otros productos, mantener comportamiento normal
-            key = self._get_procurement_group_key(procurement)
-            if key not in procurement_groups:
-                procurement_groups[key] = []
-            procurement_groups[key].append(procurement)
-        
-        # Devolver solo los grupos de procurements que pueden ser fusionados
-        result = []
-        for group in procurement_groups.values():
-            if len(group) > 1:
-                result.extend(group)
-        
-        return result
-    
-    def _get_procurement_group_key(self, procurement):
-        """
-        Crear una clave única para agrupar procurements
-        """
-        return (
-            procurement.product_id.id,
-            procurement.location_id.id,
-            procurement.company_id.id,
-            procurement.values.get('supplier_id'),
-            procurement.values.get('group_id'),
-        )
+        # Para otros productos, mantener comportamiento normal
+        return super()._get_procurements_to_merge(product_id, product_qty, product_uom, location_id, name, origin, company_id, values)
     
     def _prepare_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, po):
         """
@@ -54,25 +26,21 @@ class StockRule(models.Model):
         
         # Si el producto tiene tracking, forzar creación de nueva línea
         if product_id.tracking != 'none':
-            # Buscar si ya existe una línea para evitar duplicados cuando no es necesario
-            existing_line = po.order_line.filtered(
-                lambda line: line.product_id == product_id 
-                and line.product_uom == product_uom
-                and not line.marble_height  # Solo si no tiene datos de mármol
-            )
-            
-            if not existing_line:
-                # Asegurar que los campos de mármol se propaguen
-                res.update({
-                    'order_id': po.id,
-                    'marble_height': values.get('marble_height', 0.0),
-                    'marble_width': values.get('marble_width', 0.0),
-                    'marble_sqm': values.get('marble_sqm', 0.0),
-                    'lot_general': values.get('lot_general', ''),
-                    'bundle_code': values.get('bundle_code', ''),
-                    'marble_thickness': values.get('marble_thickness', 0.0),
-                })
+            # Eliminar el ID de línea existente para forzar creación de nueva
+            if 'purchase_line_id' in res:
+                del res['purchase_line_id']
                 
-                _logger.info(f"Creando nueva línea PO para producto con tracking: {product_id.name}")
+            # Asegurar que los campos de mármol se propaguen
+            res.update({
+                'order_id': po.id,
+                'marble_height': values.get('marble_height', 0.0),
+                'marble_width': values.get('marble_width', 0.0),
+                'marble_sqm': values.get('marble_sqm', 0.0),
+                'lot_general': values.get('lot_general', ''),
+                'bundle_code': values.get('bundle_code', ''),
+                'marble_thickness': values.get('marble_thickness', 0.0),
+            })
+            
+            _logger.info(f"Creando nueva línea PO para producto con tracking: {product_id.name}")
             
         return res
