@@ -9,3 +9,4 @@ from . import stock_rule
 from . import product_template
 from . import sale_order_line_pricing
 # from . import sale_order
+from . import procurement_group

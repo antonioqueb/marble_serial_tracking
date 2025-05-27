@@ -170,3 +170,23 @@ class SaleOrderLine(models.Model):
             'marble_thickness': self.marble_thickness,
         })
         return vals
+    
+    def _action_launch_stock_rule(self, previous_product_uom_qty=False):
+        """
+        Sobrescribir para asegurar que cada línea genere su propio procurement
+        """
+        # Si el producto tiene tracking, crear un grupo único para cada línea
+        if self.product_id.tracking != 'none':
+            # Crear un grupo de procurement único para esta línea
+            group = self.env['procurement.group'].create({
+                'name': f"{self.order_id.name}/{self.id}",
+                'sale_id': self.order_id.id,
+                'partner_id': self.order_id.partner_id.id,
+            })
+            
+            # Forzar el uso de este grupo específico
+            self = self.with_context(default_group_id=group.id)
+            
+            _logger.info(f"Creando procurement individual para línea {self.id} con grupo {group.name}")
+            
+        return super()._action_launch_stock_rule(previous_product_uom_qty)
