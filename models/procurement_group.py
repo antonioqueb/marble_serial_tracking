@@ -74,27 +74,76 @@ class StockRule(models.Model):
             
         return res
     
-    def _make_po_select_supplier(self, values, suppliers):
+    def _make_po_get_domain(self, company_id, values, partner):
         """
-        Sobrescribir para evitar agrupamiento en la selección de proveedor
+        Sobrescribir para crear PO separadas para productos con tracking si es necesario
         """
-        res = super()._make_po_select_supplier(values, suppliers)
+        domain = super()._make_po_get_domain(company_id, values, partner)
         
-        # Si hay datos de mármol en values, significa que es un producto con tracking
+        # Si hay datos de mármol (producto con tracking), modificar el dominio para evitar reutilización
         if values.get('marble_height') or values.get('marble_width') or values.get('lot_general'):
-            # Forzar que se cree una nueva PO o que no se reutilice línea existente
-            _logger.info("Procurement con datos de mármol - evitando reutilización de PO")
+            # Agregar condición imposible para forzar nueva PO
+            domain.append(('id', '=', -1))  # ID que nunca existirá
+            _logger.info("Procurement con datos de mármol - forzando nueva PO")
             
-        return res
+        return domain
     
     def _update_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, line):
         """
-        Sobrescribir para productos con tracking: NUNCA actualizar línea existente
+        Sobrescribir para productos con tracking: CREAR nueva línea en lugar de actualizar
         """
         if product_id.tracking != 'none':
-            _logger.info(f"Producto {product_id.name} con tracking - NO actualizar línea existente")
-            # No hacer nada, esto forzará la creación de una nueva línea
-            return {}
+            _logger.info(f"Producto {product_id.name} con tracking - CREANDO nueva línea en lugar de actualizar existente")
+            
+            # Crear nueva línea en lugar de actualizar la existente
+            po = line.order_id
+            new_line_vals = self._prepare_purchase_order_line(
+                product_id, product_qty, product_uom, company_id, values, po
+            )
+            
+            # Crear la nueva línea
+            new_line = self.env['purchase.order.line'].create(new_line_vals)
+            _logger.info(f"Nueva línea PO creada: ID {new_line.id} para {product_id.name}")
+            
+            return new_line
             
         # Para productos sin tracking, comportamiento normal
         return super()._update_purchase_order_line(product_id, product_qty, product_uom, company_id, values, line)
+    
+    def _get_purchase_order_line(self, procurements):
+        """
+        Sobrescribir para forzar creación de nuevas líneas para productos con tracking
+        """
+        # Procesar cada procurement individualmente para productos con tracking
+        lines = self.env['purchase.order.line']
+        
+        for procurement in procurements:
+            product_id = procurement.product_id
+            
+            if product_id.tracking != 'none':
+                _logger.info(f"Producto {product_id.name} con tracking - creando nueva línea sin buscar existente")
+                # Para productos con tracking, no buscar líneas existentes, ir directo a crear nueva
+                continue  # Esto permitirá que el flujo normal cree una nueva línea
+            else:
+                # Para productos sin tracking, usar comportamiento normal
+                if hasattr(super(), '_get_purchase_order_line'):
+                    line = super()._get_purchase_order_line([procurement])
+                    lines |= line
+        
+        return lines
+    
+    def _check_existing_po_line(self, po, procurement):
+        """
+        Método personalizado para verificar líneas existentes
+        """
+        product_id = procurement.product_id
+        
+        if product_id.tracking != 'none':
+            _logger.info(f"Producto {product_id.name} con tracking - NO buscar línea existente")
+            return False
+            
+        # Para productos sin tracking, buscar líneas existentes normalmente
+        return po.order_line.filtered(
+            lambda line: line.product_id == product_id and 
+            line.product_uom == procurement.product_uom
+        )
