@@ -1,5 +1,5 @@
 # models/procurement_group.py
-from odoo import models, api
+from odoo import models, api, fields
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -16,9 +16,7 @@ class StockRule(models.Model):
         normal_procurements = []
         
         for procurement in procurements:
-            # Obtener product_id de manera segura desde el procurement
             try:
-                # En Odoo 18, procurement es un namedtuple con: (product_id, product_qty, product_uom, location_id, name, origin, company_id, values)
                 product_id = procurement.product_id
                 
                 if product_id.tracking != 'none':
@@ -45,11 +43,17 @@ class StockRule(models.Model):
                     merged_procurements.append([proc])
             
         return merged_procurements
+
+
+class PurchaseStockRule(models.Model):
+    _inherit = 'stock.rule'
+    _name = 'stock.rule'  # Mantener el mismo nombre del modelo
     
     def _prepare_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, po):
         """
         Para productos con tracking: SIEMPRE crear nueva línea
         """
+        # Usar el método del módulo purchase_stock
         res = super()._prepare_purchase_order_line(product_id, product_qty, product_uom, company_id, values, po)
         
         if product_id.tracking != 'none':
@@ -74,34 +78,35 @@ class StockRule(models.Model):
             
         return res
     
-    def _make_po_get_domain(self, company_id, values, partner):
-        """
-        Sobrescribir para crear PO separadas para productos con tracking si es necesario
-        """
-        domain = super()._make_po_get_domain(company_id, values, partner)
-        
-        # Si hay datos de mármol (producto con tracking), modificar el dominio para evitar reutilización
-        if values.get('marble_height') or values.get('marble_width') or values.get('lot_general'):
-            # Agregar condición imposible para forzar nueva PO
-            domain.append(('id', '=', -1))  # ID que nunca existirá
-            _logger.info("Procurement con datos de mármol - forzando nueva PO")
-            
-        return domain
-    
     def _update_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, line):
         """
-        Sobrescribir para productos con tracking: CREAR nueva línea en lugar de actualizar
+        Sobrescribir para productos con tracking: NUNCA actualizar línea existente
         """
         if product_id.tracking != 'none':
-            _logger.info(f"Producto {product_id.name} con tracking - CREANDO nueva línea en lugar de actualizar existente")
+            _logger.info(f"Producto {product_id.name} con tracking - NO actualizar línea existente, forzar nueva")
             
-            # Crear nueva línea en lugar de actualizar la existente
+            # Para productos con tracking, no actualizar la línea existente
+            # Esto forzará al sistema a crear una nueva línea
             po = line.order_id
-            new_line_vals = self._prepare_purchase_order_line(
-                product_id, product_qty, product_uom, company_id, values, po
-            )
             
-            # Crear la nueva línea
+            # Preparar valores para nueva línea
+            new_line_vals = {
+                'product_id': product_id.id,
+                'product_qty': product_qty,
+                'product_uom': product_uom.id,
+                'price_unit': 0.0,  # Se calculará automáticamente
+                'name': product_id.name,
+                'order_id': po.id,
+                'date_planned': fields.Date.today(),
+                'marble_height': values.get('marble_height', 0.0),
+                'marble_width': values.get('marble_width', 0.0),
+                'marble_sqm': values.get('marble_sqm', 0.0),
+                'lot_general': values.get('lot_general', ''),
+                'bundle_code': values.get('bundle_code', ''),
+                'marble_thickness': values.get('marble_thickness', 0.0),
+            }
+            
+            # Crear nueva línea
             new_line = self.env['purchase.order.line'].create(new_line_vals)
             _logger.info(f"Nueva línea PO creada: ID {new_line.id} para {product_id.name}")
             
@@ -110,40 +115,18 @@ class StockRule(models.Model):
         # Para productos sin tracking, comportamiento normal
         return super()._update_purchase_order_line(product_id, product_qty, product_uom, company_id, values, line)
     
-    def _get_purchase_order_line(self, procurements):
+    def _make_po_get_domain(self, company_id, values, partner):
         """
-        Sobrescribir para forzar creación de nuevas líneas para productos con tracking
+        Modificar dominio para productos con tracking
         """
-        # Procesar cada procurement individualmente para productos con tracking
-        lines = self.env['purchase.order.line']
+        domain = super()._make_po_get_domain(company_id, values, partner)
         
-        for procurement in procurements:
-            product_id = procurement.product_id
+        # Si hay datos de mármol (producto con tracking), forzar nueva PO para cada procurement
+        if values.get('marble_height') or values.get('marble_width') or values.get('lot_general'):
+            # Agregar el procurement group específico al dominio para asegurar unicidad
+            group_id = values.get('group_id')
+            if group_id:
+                domain.append(('group_id', '=', group_id.id))
+                _logger.info(f"Producto con tracking - usando group_id específico: {group_id.name}")
             
-            if product_id.tracking != 'none':
-                _logger.info(f"Producto {product_id.name} con tracking - creando nueva línea sin buscar existente")
-                # Para productos con tracking, no buscar líneas existentes, ir directo a crear nueva
-                continue  # Esto permitirá que el flujo normal cree una nueva línea
-            else:
-                # Para productos sin tracking, usar comportamiento normal
-                if hasattr(super(), '_get_purchase_order_line'):
-                    line = super()._get_purchase_order_line([procurement])
-                    lines |= line
-        
-        return lines
-    
-    def _check_existing_po_line(self, po, procurement):
-        """
-        Método personalizado para verificar líneas existentes
-        """
-        product_id = procurement.product_id
-        
-        if product_id.tracking != 'none':
-            _logger.info(f"Producto {product_id.name} con tracking - NO buscar línea existente")
-            return False
-            
-        # Para productos sin tracking, buscar líneas existentes normalmente
-        return po.order_line.filtered(
-            lambda line: line.product_id == product_id and 
-            line.product_uom == procurement.product_uom
-        )
+        return domain
