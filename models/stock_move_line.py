@@ -89,3 +89,60 @@ class StockMoveLine(models.Model):
 
        
         return move_lines
+
+    def write(self, vals):
+        """
+        Extiende el método write para generar lotes secuenciales automáticos
+        al recibir un valor en lot_general durante la edición manual.
+        """
+        lots_env = self.env['stock.lot']
+        seq_env = self.env['ir.sequence'].sudo()
+
+        for line in self:
+            if 'lot_general' in vals and vals['lot_general'] and not line.lot_id:
+                # Solo aplicarlo para líneas en recepciones entrantes
+                picking_code = line.picking_id.picking_type_id.code
+                if picking_code != 'incoming':
+                    _logger.debug(
+                        "[SML-WRITE] No es 'incoming' (code=%s) → sin lote auto",
+                        picking_code
+                    )
+                    continue
+
+                lot_general = vals['lot_general']
+                product_id = vals.get('product_id', line.product_id.id)
+
+                # Crear o buscar secuencia específica por `lot_general`
+                seq_code = f"marble.serial.{lot_general}"
+                sequence = seq_env.search([('code', '=', seq_code)], limit=1)
+                if not sequence:
+                    sequence = seq_env.create({
+                        'name': _('Secuencia Mármol %s') % lot_general,
+                        'code': seq_code,
+                        'padding': 3,
+                        'prefix': f"{lot_general}-",
+                    })
+                    _logger.debug("[SEQ-WRITE] Creada nueva secuencia %s", seq_code)
+
+                # Generar SIEMPRE un lote nuevo (no reutilizar)
+                lot_name = sequence.next_by_id()
+                lot_vals = {
+                    'name': lot_name,
+                    'product_id': product_id,
+                    'company_id': line.company_id.id,
+                    'marble_height': vals.get('marble_height', line.marble_height),
+                    'marble_width': vals.get('marble_width', line.marble_width),
+                    'marble_sqm': vals.get('marble_sqm', line.marble_sqm),
+                    'lot_general': lot_general,
+                    'bundle_code': vals.get('bundle_code', line.bundle_code),
+                    'marble_thickness': vals.get('marble_thickness', line.marble_thickness),
+                }
+                new_lot = lots_env.create(lot_vals)
+                vals['lot_id'] = new_lot.id
+
+                _logger.debug(
+                    "[SML-WRITE] Creado nuevo lote secuencial: %s para línea ID: %s",
+                    lot_name, line.id
+                )
+
+        return super().write(vals)
