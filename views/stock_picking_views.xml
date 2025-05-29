@@ -1,4 +1,5 @@
 <odoo>
+# funcionalidad de mármol
     <record id="view_picking_form_inherit_marble" model="ir.ui.view">
         <field name="name">stock.picking.form.marble</field>
         <field name="model">stock.picking</field>
