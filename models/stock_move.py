@@ -49,67 +49,36 @@ class StockMove(models.Model):
             _logger.info(f"[MARBLE-ONCHANGE] Stock Move ID {move.id} → altura={move.marble_height}, ancho={move.marble_width}, lote={move.lot_general}")
 
     def write(self, vals):
-        lots_env = self.env['stock.lot']
-        seq_env = self.env['ir.sequence'].sudo()
+        """
+        Método write mejorado - Delega la creación de lotes a StockMoveLine
+        """
+        # Si no hay cambios relacionados con lotes, usar comportamiento normal
+        if not any(field in vals for field in ['lot_general', 'marble_height', 'marble_width', 'marble_thickness', 'bundle_code']):
+            return super().write(vals)
 
-        res = super().write(vals)
+        _logger.info(f"[STOCK-MOVE-WRITE] Actualizando {len(self)} moves con campos de mármol")
 
-        if 'lot_general' in vals and vals['lot_general']:
-            for move in self:
+        # Para moves de entrada con lot_general, propagar a las move_lines
+        for move in self:
+            if 'lot_general' in vals and vals['lot_general']:
                 picking_code = move.picking_type_id.code
-                if picking_code != 'incoming':
-                    continue
+                if picking_code == 'incoming':
+                    _logger.info(f"[STOCK-MOVE-WRITE] Propagando lot_general '{vals['lot_general']}' a move_lines del move {move.id}")
+                    
+                    # Propagar a move_lines que no tienen lote
+                    move_lines_without_lot = move.move_line_ids.filtered(lambda ml: not ml.lot_id)
+                    if move_lines_without_lot:
+                        # Los move_lines se encargarán de crear los lotes con su método write() mejorado
+                        move_lines_without_lot.write({
+                            'lot_general': vals['lot_general'],
+                            'marble_height': vals.get('marble_height', move.marble_height),
+                            'marble_width': vals.get('marble_width', move.marble_width),
+                            'marble_thickness': vals.get('marble_thickness', move.marble_thickness),
+                            'bundle_code': vals.get('bundle_code', move.bundle_code),
+                        })
 
-                lot_general = vals['lot_general']
-                product_id = move.product_id.id
-
-                seq_code = f"marble.serial.{lot_general}"
-                sequence = seq_env.search([('code', '=', seq_code)], limit=1)
-                if not sequence:
-                    sequence = seq_env.create({
-                        'name': _('Secuencia Mármol %s') % lot_general,
-                        'code': seq_code,
-                        'padding': 3,
-                        'prefix': f"{lot_general}-",
-                    })
-
-                lot_name = sequence.next_by_id()
-                lot_vals = {
-                    'name': lot_name,
-                    'product_id': product_id,
-                    'company_id': move.company_id.id,
-                    'marble_height': move.marble_height,
-                    'marble_width': move.marble_width,
-                    'marble_sqm': move.marble_sqm,
-                    'lot_general': lot_general,
-                    'bundle_code': move.bundle_code,
-                    'marble_thickness': move.marble_thickness,
-                }
-                new_lot = lots_env.create(lot_vals)
-
-                # Actualizar o crear move line asociada
-                move_line = move.move_line_ids.filtered(lambda ml: not ml.lot_id)
-                if move_line:
-                    move_line.write({'lot_id': new_lot.id})
-                else:
-                    self.env['stock.move.line'].create({
-                        'move_id': move.id,
-                        'product_id': move.product_id.id,
-                        'product_uom_id': move.product_uom.id,
-                        'location_id': move.location_id.id,
-                        'location_dest_id': move.location_dest_id.id,
-                        'picking_id': move.picking_id.id,
-                        'company_id': move.company_id.id,
-                        'lot_id': new_lot.id,
-                        'quantity': move.product_uom_qty,
-                        'marble_height': move.marble_height,
-                        'marble_width': move.marble_width,
-                        'marble_sqm': move.marble_sqm,
-                        'lot_general': lot_general,
-                        'bundle_code': move.bundle_code,
-                        'marble_thickness': move.marble_thickness,
-                    })
-
+        # Llamar al método padre para actualizar los campos del move
+        res = super().write(vals)
         return res
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
