@@ -9,24 +9,26 @@
             <xpath expr="//field[@name='order_line']/form//field[@name='price_level']" position="after">
                 <field name="lot_id" domain="[('product_id', '=', product_id)]"/>
                 <field name="pedimento_number" readonly="1"/>
-                <field name="marble_thickness" readonly="1"/>
-                <field name="marble_height" readonly="1"/>
-                <field name="marble_width" readonly="1"/>
-                <field name="marble_sqm" readonly="1"/>
-                <field name="lot_general" readonly="1"/>
-                <field name="bundle_code" readonly="1"/>
+                <!-- CAMPOS EDITABLES DE MÁRMOL -->
+                <field name="marble_thickness"/>
+                <field name="marble_height"/>
+                <field name="marble_width"/>
+                <field name="marble_sqm"/>
+                <field name="lot_general"/>
+                <field name="bundle_code"/>
             </xpath>
 
             <!-- ─────────── Tree: DESPUÉS de applied_price_per_sqm ─────────── -->
             <xpath expr="//field[@name='order_line']/list//field[@name='applied_price_per_sqm']" position="after">
                 <field name="lot_id" optional="show"/>
                 <field name="pedimento_number" readonly="1" optional="show"/>
-                <field name="marble_thickness" readonly="1" optional="show"/>
-                <field name="marble_height" readonly="1" optional="show"/>
-                <field name="marble_width" readonly="1" optional="show"/>
-                <field name="marble_sqm" readonly="1" optional="show"/>
-                <field name="lot_general" readonly="1" optional="show"/>
-                <field name="bundle_code" readonly="1" optional="show"/>
+                <!-- CAMPOS EDITABLES DE MÁRMOL EN VISTA TREE -->
+                <field name="marble_thickness" optional="show"/>
+                <field name="marble_height" optional="show"/>
+                <field name="marble_width" optional="show"/>
+                <field name="marble_sqm" optional="show"/>
+                <field name="lot_general" optional="show"/>
+                <field name="bundle_code" optional="show"/>
             </xpath>
 
         </field>

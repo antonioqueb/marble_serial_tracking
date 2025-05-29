@@ -49,78 +49,75 @@ class SaleOrderLine(models.Model):
         readonly=True,
     )
 
-    # ---------- Datos de mármol (ya existentes, relacionados con el lote) ----------
-    # Cambiar de related a compute para manejar cuando no hay lote
+    # ---------- Datos de mármol (EDITABLES) ----------
     marble_height = fields.Float(
         string='Altura (m)',
-        compute='_compute_marble_fields',
         store=True,
-        readonly=True
+        readonly=False  # CAMBIADO: Ahora es editable
     )
     marble_width = fields.Float(
         string='Ancho (m)',
-        compute='_compute_marble_fields',
         store=True,
-        readonly=True
+        readonly=False  # CAMBIADO: Ahora es editable
     )
     marble_sqm = fields.Float(
         string='Metros Cuadrados',
-        compute='_compute_marble_fields',
+        compute='_compute_marble_sqm',
         store=True,
-        readonly=True
+        readonly=False  # CAMBIADO: Ahora es editable
     )
     lot_general = fields.Char(
         string='Lote General',
-        compute='_compute_marble_fields',
         store=True,
-        readonly=True
+        readonly=False  # CAMBIADO: Ahora es editable
     )
     bundle_code = fields.Char(
         string='Bundle Code',
-        compute='_compute_marble_fields',
         store=True,
-        readonly=True
+        readonly=False  # CAMBIADO: Ahora es editable
     )
     marble_thickness = fields.Float(
         string='Grosor (cm)',
-        compute='_compute_marble_fields',
         store=True,
-        readonly=True
+        readonly=False  # CAMBIADO: Ahora es editable
     )
 
     # =====================================================
-    # LÓGICA
+    # LÓGICA ACTUALIZADA
     # =====================================================
 
-    @api.depends('lot_id')
-    def _compute_marble_fields(self):
+    @api.depends('marble_height', 'marble_width')
+    def _compute_marble_sqm(self):
         """
-        Si hay lote, toma los valores del lote.
-        Si no hay lote, establece valores por defecto.
+        Calcula automáticamente los m² cuando se modifican altura o ancho
         """
         for line in self:
-            if line.lot_id:
-                line.marble_height = line.lot_id.marble_height
-                line.marble_width = line.lot_id.marble_width
-                line.marble_sqm = line.lot_id.marble_sqm
-                line.lot_general = line.lot_id.lot_general
-                line.bundle_code = line.lot_id.bundle_code
-                line.marble_thickness = line.lot_id.marble_thickness
-            else:
-                line.marble_height = 0.0
-                line.marble_width = 0.0
+            if line.marble_height and line.marble_width:
+                line.marble_sqm = line.marble_height * line.marble_width
+            elif not line.lot_id:
+                # Solo resetear si no hay lote seleccionado
                 line.marble_sqm = 0.0
-                line.lot_general = ''
-                line.bundle_code = ''
-                line.marble_thickness = 0.0
+
+    @api.onchange('lot_id')
+    def _onchange_lot_id(self):
+        """
+        Cuando se selecciona un lote, actualizar los campos con los valores del lote
+        """
+        if self.lot_id:
+            self.marble_height = self.lot_id.marble_height
+            self.marble_width = self.lot_id.marble_width
+            self.marble_sqm = self.lot_id.marble_sqm
+            self.lot_general = self.lot_id.lot_general
+            self.bundle_code = self.lot_id.bundle_code
+            self.marble_thickness = self.lot_id.marble_thickness
+            
+            _logger.info(f"[LOT-CHANGE] Campos actualizados desde lote {self.lot_id.name}")
 
     @api.depends('lot_id')
     def _compute_pedimento_number(self):
         """
         Cuando el usuario selecciona un lote, buscamos cualquier quant
         (con existencias positivas) que tenga asignado un pedimento.
-        Tomamos el primero que aparezca ―es el mismo valor para todas
-        las existencias del lote― y lo almacenamos en la línea.
         """
         Quant = self.env['stock.quant']
         for line in self:
