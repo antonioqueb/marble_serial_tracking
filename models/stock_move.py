@@ -14,7 +14,7 @@ class StockMove(models.Model):
     # Campos de mármol
     marble_height = fields.Float('Altura (m)')
     marble_width = fields.Float('Ancho (m)')
-    marble_sqm = fields.Float('Metros Cuadrados')
+    marble_sqm = fields.Float('Metros Cuadrados', compute='_compute_marble_sqm', store=True, readonly=False)
     lot_general = fields.Char('Lote General')
     bundle_code = fields.Char('Bundle Code')
     marble_thickness = fields.Float('Grosor (cm)')
@@ -26,10 +26,27 @@ class StockMove(models.Model):
         store=True
     )
 
+    @api.depends('marble_height', 'marble_width')
+    def _compute_marble_sqm(self):
+        """
+        Calcula automáticamente los metros cuadrados basado en altura x ancho
+        """
+        for move in self:
+            move.marble_sqm = (move.marble_height or 0.0) * (move.marble_width or 0.0)
+            _logger.debug(f"[MARBLE-COMPUTE] Stock Move ID {move.id}: altura={move.marble_height}, ancho={move.marble_width} → m²={move.marble_sqm}")
+
     @api.depends('picking_type_id.code')
     def _compute_is_outgoing(self):
         for move in self:
             move.is_outgoing = move.picking_type_id.code == 'outgoing'
+
+    @api.onchange('marble_height', 'marble_width', 'lot_general')
+    def _onchange_marble_fields(self):
+        """
+        OnChange para mostrar cambios inmediatos en la interfaz
+        """
+        for move in self:
+            _logger.info(f"[MARBLE-ONCHANGE] Stock Move ID {move.id} → altura={move.marble_height}, ancho={move.marble_width}, lote={move.lot_general}")
 
     def write(self, vals):
         lots_env = self.env['stock.lot']
