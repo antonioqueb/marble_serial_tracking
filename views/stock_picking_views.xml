@@ -6,16 +6,16 @@
         <field name="arch" type="xml">
 
             <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_id']"
-                   position="after">
-                <field name="marble_thickness" readonly="1"/>
-                <field name="lot_id"           readonly="1" invisible="not is_outgoing"/>
-                <field name="marble_height"    readonly="1"/>
-                <field name="marble_width"     readonly="1"/>
-                <field name="marble_sqm"       readonly="1"/>
-                <field name="lot_general"      readonly="1"/>
-                <field name="bundle_code" readonly="1"/> <!-- NUEVO CAMPO -->
-
+                position="after">
+                <field name="marble_thickness"/>
+                <field name="lot_id" invisible="not is_outgoing"/>
+                <field name="marble_height"/>
+                <field name="marble_width"/>
+                <field name="marble_sqm"/>
+                <field name="lot_general"/>
+                <field name="bundle_code"/>
             </xpath>
+
 
         </field>
     </record>
