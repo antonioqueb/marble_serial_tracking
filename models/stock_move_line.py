@@ -8,30 +8,27 @@ _logger = logging.getLogger(__name__)
 class StockMoveLine(models.Model):
     _inherit = 'stock.move.line'
 
-    # ─────────── Campos extendidos ───────────
     marble_height = fields.Float('Altura (m)')
-    marble_width  = fields.Float('Ancho (m)')
-    marble_sqm    = fields.Float('Metros Cuadrados', compute='_compute_marble_sqm', store=True, readonly=False)
-    lot_general   = fields.Char('Lote General')
-    bundle_code   = fields.Char('Bundle Code')
+    marble_width = fields.Float('Ancho (m)')
+    marble_sqm = fields.Float('Metros Cuadrados', compute='_compute_marble_sqm', store=True, readonly=False)
+    lot_general = fields.Char('Lote General')
+    bundle_code = fields.Char('Bundle Code')
     marble_thickness = fields.Float('Grosor (cm)')
 
-    # ─────────── Cálculo automático de m² ───────────
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
         for line in self:
             line.marble_sqm = (line.marble_height or 0.0) * (line.marble_width or 0.0)
-            _logger.debug(f"[MARBLE-SQM-COMPUTE] Move Line ID {line.id}: altura={line.marble_height}, ancho={line.marble_width} → m²={line.marble_sqm}")
 
-    # ─────────── Creación automática de lote ───────────
     @api.model_create_multi
     def create(self, vals_list):
         lots_env = self.env['stock.lot']
-        seq_env  = self.env['ir.sequence'].sudo()
+        seq_env = self.env['ir.sequence'].sudo()
 
         for vals in vals_list:
             _logger.debug("[SML-CREATE|PRE] vals=%s", vals)
 
+        for vals in vals_list:
             if vals.get('lot_id') or not vals.get('lot_general'):
                 continue
 
@@ -46,7 +43,7 @@ class StockMoveLine(models.Model):
                 continue
 
             lot_general = vals['lot_general']
-            product_id  = vals.get('product_id')
+            product_id = vals.get('product_id')
 
             seq_code = f"marble.serial.{lot_general}"
             sequence = seq_env.search([('code', '=', seq_code)], limit=1)
@@ -60,18 +57,19 @@ class StockMoveLine(models.Model):
 
             lot_name = sequence.next_by_id()
             vals['lot_id'] = lots_env.create({
-                'name':          lot_name,
-                'product_id':    product_id,
-                'company_id':    vals.get('company_id'),
+                'name': lot_name,
+                'product_id': product_id,
+                'company_id': vals.get('company_id'),
                 'marble_height': vals.get('marble_height'),
-                'marble_width':  vals.get('marble_width'),
-                'marble_sqm':    vals.get('marble_sqm'),
-                'lot_general':   lot_general,
-                'bundle_code':   bundle_code_val,
+                'marble_width': vals.get('marble_width'),
+                'marble_sqm': (vals.get('marble_height') or 0.0) * (vals.get('marble_width') or 0.0),
+                'lot_general': lot_general,
+                'bundle_code': bundle_code_val,
                 'marble_thickness': vals.get('marble_thickness', 0.0),
             }).id
 
-        return super().create(vals_list)
+        move_lines = super().create(vals_list)
+        return move_lines
 
     def write(self, vals):
         lots_env = self.env['stock.lot']
@@ -103,17 +101,12 @@ class StockMoveLine(models.Model):
                     'company_id': line.company_id.id,
                     'marble_height': vals.get('marble_height', line.marble_height),
                     'marble_width': vals.get('marble_width', line.marble_width),
-                    'marble_sqm': vals.get('marble_sqm', line.marble_sqm),
+                    'marble_sqm': (vals.get('marble_height', line.marble_height) or 0.0) * (vals.get('marble_width', line.marble_width) or 0.0),
                     'lot_general': lot_general,
                     'bundle_code': vals.get('bundle_code', line.bundle_code),
                     'marble_thickness': vals.get('marble_thickness', line.marble_thickness),
                 }
                 new_lot = lots_env.create(lot_vals)
                 vals['lot_id'] = new_lot.id
-
-                _logger.debug(
-                    "[SML-WRITE] Creado nuevo lote secuencial: %s para línea ID: %s",
-                    lot_name, line.id
-                )
 
         return super().write(vals)
