@@ -16,12 +16,20 @@ class StockRule(models.Model):
         # Capturar los valores ANTES de llamar al método padre
         procurement_data = {}
         for procurement in procurements:
-            # procurement es una tupla (product, qty, uom, location, name, origin, company, values)
-            values = procurement[7] if len(procurement) > 7 else {}
+            # procurement es un namedtuple: (product, qty, uom, location, name, origin, company, values)
+            try:
+                product = procurement.product_id
+                origin = procurement.origin  
+                values = procurement.values or {}
+            except AttributeError:
+                # Fallback para acceso por índice si no es namedtuple
+                product = procurement[0]
+                origin = procurement[5] 
+                values = procurement[7] if len(procurement) > 7 else {}
             
             if 'marble_sqm' in values and values.get('marble_sqm', 0.0) > 0:
                 # Crear una clave única para este procurement
-                proc_key = f"{procurement[0].id}_{procurement[5]}"  # product_id_origin
+                proc_key = f"{product.id}_{origin}"  # product_id_origin
                 procurement_data[proc_key] = {
                     'marble_height': values.get('marble_height', 0.0),
                     'marble_width': values.get('marble_width', 0.0),
@@ -29,15 +37,24 @@ class StockRule(models.Model):
                     'lot_general': values.get('lot_general', ''),
                     'marble_thickness': values.get('marble_thickness', 0.0),
                 }
-                _logger.info(f"[MARBLE-PROCUREMENT] Capturado para {procurement[0].name}: {procurement_data[proc_key]}")
+                _logger.info(f"[MARBLE-PROCUREMENT] Capturado para {product.name}: {procurement_data[proc_key]}")
 
         # Llamar al método padre para crear/actualizar las PO
         res = super()._run_buy(procurements)
         
         # DESPUÉS de crear las PO, buscar y actualizar las líneas
         for procurement in procurements:
-            values = procurement[7] if len(procurement) > 7 else {}
-            proc_key = f"{procurement[0].id}_{procurement[5]}"
+            try:
+                product = procurement.product_id
+                origin = procurement.origin  
+                values = procurement.values or {}
+            except AttributeError:
+                # Fallback para acceso por índice si no es namedtuple
+                product = procurement[0]
+                origin = procurement[5] 
+                values = procurement[7] if len(procurement) > 7 else {}
+                
+            proc_key = f"{product.id}_{origin}"
             
             if proc_key in procurement_data:
                 marble_data = procurement_data[proc_key]
