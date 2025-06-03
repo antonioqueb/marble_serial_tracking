@@ -25,3 +25,17 @@ class StockRule(models.Model):
         # res['marble_thickness'] = values.get('marble_thickness', 0.0)
         
         return res
+    
+    def _update_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, line):
+        """
+        Sobrescribir para asegurar que marble_sqm se actualice en líneas existentes
+        """
+        res = super()._update_purchase_order_line(product_id, product_qty, product_uom, company_id, values, line)
+        
+        # Cuando se actualiza una línea existente, también actualizar marble_sqm
+        if 'marble_sqm' in values and values.get('marble_sqm', 0.0) > 0:
+            update_values = {'marble_sqm': values['marble_sqm']}
+            line.write(update_values)
+            _logger.info(f"[MARBLE-UPDATE] Actualizando PO line {line.id} con marble_sqm={values['marble_sqm']}")
+        
+        return res
