@@ -12,31 +12,32 @@ class StockRule(models.Model):
         Sobrescribir para evitar que se agrupen las líneas de productos con tracking
         En Odoo 18, este método recibe una lista de procurements, no parámetros individuales
         """
-        result = {}
+        # Separar procurements por tipo de producto
+        tracking_procurements = []
+        normal_procurements = []
         
         for procurement in procurements:
-            product_id = procurement.product_id
-            
-            # Si el producto tiene tracking (mármol), no permitir agrupamiento
-            # Crear un grupo único para cada procurement
-            if product_id.tracking != 'none':
-                # Crear una clave única para cada procurement para evitar agrupamiento
-                unique_key = (
-                    procurement.product_id.id,
-                    procurement.location_id.id,
-                    procurement.company_id.id,
-                    procurement.values.get('sale_line_id', 0),  # Incluir sale_line_id para unicidad
-                    id(procurement)  # ID único del objeto procurement
-                )
-                result[unique_key] = [procurement]
-                _logger.info(f"[PROCUREMENT-MERGE] Producto con tracking {product_id.name}: creando grupo único")
+            if procurement.product_id.tracking != 'none':
+                tracking_procurements.append(procurement)
+                _logger.info(f"[PROCUREMENT-MERGE] Producto con tracking {procurement.product_id.name}: sin agrupamiento")
             else:
-                # Para productos sin tracking, usar el comportamiento normal de agrupamiento
-                # Usar la implementación padre para estos procurements
-                normal_result = super()._get_procurements_to_merge([procurement])
-                result.update(normal_result)
-                _logger.info(f"[PROCUREMENT-MERGE] Producto sin tracking {product_id.name}: agrupamiento normal")
+                normal_procurements.append(procurement)
+                _logger.info(f"[PROCUREMENT-MERGE] Producto sin tracking {procurement.product_id.name}: agrupamiento normal")
         
+        # Inicializar resultado
+        result = {}
+        
+        # Para productos con tracking: cada procurement en su propio grupo (sin agrupar)
+        for procurement in tracking_procurements:
+            # Usar el procurement mismo como clave única (no agruparlo con otros)
+            result[procurement] = [procurement]
+        
+        # Para productos sin tracking: usar el agrupamiento normal
+        if normal_procurements:
+            normal_result = super()._get_procurements_to_merge(normal_procurements)
+            result.update(normal_result)
+        
+        _logger.info(f"[PROCUREMENT-MERGE] Total grupos creados: {len(result)}")
         return result
     
     def _prepare_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, po):
