@@ -28,9 +28,18 @@ class StockRule(models.Model):
         result = {}
         
         # Para productos con tracking: cada procurement en su propio grupo (sin agrupar)
-        for procurement in tracking_procurements:
-            # Usar el procurement mismo como clave única (no agruparlo con otros)
-            result[procurement] = [procurement]
+        for i, procurement in enumerate(tracking_procurements):
+            # Crear una clave hashable única para cada procurement
+            # Usar el ID del procurement más un contador para asegurar unicidad
+            unique_key = (
+                'tracking_product',
+                procurement.product_id.id,
+                procurement.location_id.id,
+                procurement.company_id.id,
+                procurement.values.get('sale_line_id', 0),
+                i  # Contador para garantizar unicidad
+            )
+            result[unique_key] = [procurement]
         
         # Para productos sin tracking: usar el agrupamiento normal
         if normal_procurements:
