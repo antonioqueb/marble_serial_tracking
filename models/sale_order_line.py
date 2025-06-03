@@ -61,21 +61,17 @@ class SaleOrderLine(models.Model):
         readonly=False  # CAMBIADO: Ahora es editable
     )
     marble_sqm = fields.Float(
-        string='Metros Cuadrados',
+        string='m²',
         compute='_compute_marble_sqm',
         store=True,
         readonly=False  # CAMBIADO: Ahora es editable
     )
     lot_general = fields.Char(
-        string='Lote General',
+        string='Lote',
         store=True,
         readonly=False  # CAMBIADO: Ahora es editable
     )
-    bundle_code = fields.Char(
-        string='Bundle Code',
-        store=True,
-        readonly=False  # CAMBIADO: Ahora es editable
-    )
+   
     marble_thickness = fields.Float(
         string='Grosor (cm)',
         store=True,
@@ -108,7 +104,6 @@ class SaleOrderLine(models.Model):
             self.marble_width = self.lot_id.marble_width
             self.marble_sqm = self.lot_id.marble_sqm
             self.lot_general = self.lot_id.lot_general
-            self.bundle_code = self.lot_id.bundle_code
             self.marble_thickness = self.lot_id.marble_thickness
             
             _logger.info(f"[LOT-CHANGE] Campos actualizados desde lote {self.lot_id.name}")
@@ -162,7 +157,6 @@ class SaleOrderLine(models.Model):
             'marble_width':     self.marble_width,
             'marble_sqm':       self.marble_sqm,
             'lot_general':      self.lot_general,
-            'bundle_code':      self.bundle_code,
             'pedimento_number': self.pedimento_number,
             'marble_thickness': self.marble_thickness,
         })

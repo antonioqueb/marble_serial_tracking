@@ -15,7 +15,6 @@
                 <field name="marble_width"/>
                 <field name="marble_sqm"/>
                 <field name="lot_general"/>
-                <field name="bundle_code"/>
             </xpath>
 
             <!-- ─────────── Tree: DESPUÉS de applied_price_per_sqm ─────────── -->
@@ -28,7 +27,6 @@
                 <field name="marble_width" optional="show"/>
                 <field name="marble_sqm" optional="show"/>
                 <field name="lot_general" optional="show"/>
-                <field name="bundle_code" optional="show"/>
             </xpath>
 
         </field>

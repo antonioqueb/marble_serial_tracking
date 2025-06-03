@@ -24,7 +24,6 @@ class PurchaseOrder(models.Model):
                     'marble_sqm': po_line.marble_sqm or 0.0,
                     'marble_thickness': po_line.marble_thickness or 0.0,
                     'lot_general': po_line.lot_general or '',
-                    'bundle_code': po_line.bundle_code or '',
 
 
                 })

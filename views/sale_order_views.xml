@@ -8,13 +8,22 @@
             <!-- ─────────── Formulario: DESPUÉS del product_id ─────────── -->
             <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="after">
                 <field name="price_level"/>
-                <field name="applied_price_per_sqm" readonly="1"/>
+                <!-- Campo editable con condiciones directas (Odoo 17/18) -->
+                <field name="applied_price_per_sqm" 
+                       readonly="price_level != 'manual'"
+                       decoration-info="price_level == 'manual'"
+                       decoration-muted="price_level != 'manual'"/>
             </xpath>
 
             <!-- ─────────── Tree: ANTES del price_unit ─────────── -->
             <xpath expr="//field[@name='order_line']/list//field[@name='price_unit']" position="before">
                 <field name="price_level" optional="show"/>
-                <field name="applied_price_per_sqm" readonly="1" optional="show"/>
+                <!-- Campo editable en vista lista también -->
+                <field name="applied_price_per_sqm" 
+                       optional="show"
+                       readonly="price_level != 'manual'"
+                       decoration-info="price_level == 'manual'"
+                       decoration-muted="price_level != 'manual'"/>
             </xpath>
 
         </field>

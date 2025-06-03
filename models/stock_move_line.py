@@ -10,9 +10,8 @@ class StockMoveLine(models.Model):
 
     marble_height = fields.Float('Altura (m)')
     marble_width = fields.Float('Ancho (m)')
-    marble_sqm = fields.Float('Metros Cuadrados', compute='_compute_marble_sqm', store=True, readonly=False)
-    lot_general = fields.Char('Lote General')
-    bundle_code = fields.Char('Bundle Code')
+    marble_sqm = fields.Float('m²', compute='_compute_marble_sqm', store=True, readonly=False)
+    lot_general = fields.Char('Lote')
     marble_thickness = fields.Float('Grosor (cm)')
 
     @api.depends('marble_height', 'marble_width')
@@ -32,7 +31,7 @@ class StockMoveLine(models.Model):
             if vals.get('lot_id') or not vals.get('lot_general'):
                 continue
 
-            bundle_code_val = vals.get('bundle_code')
+            
 
             picking_code = vals.get('picking_code')
             if not picking_code:
@@ -64,7 +63,6 @@ class StockMoveLine(models.Model):
                 'marble_width': vals.get('marble_width'),
                 'marble_sqm': (vals.get('marble_height') or 0.0) * (vals.get('marble_width') or 0.0),
                 'lot_general': lot_general,
-                'bundle_code': bundle_code_val,
                 'marble_thickness': vals.get('marble_thickness', 0.0),
             }).id
 
@@ -145,7 +143,6 @@ class StockMoveLine(models.Model):
                 'marble_width': vals.get('marble_width', line.marble_width),
                 'marble_sqm': (vals.get('marble_height', line.marble_height) or 0.0) * (vals.get('marble_width', line.marble_width) or 0.0),
                 'lot_general': lot_general,
-                'bundle_code': vals.get('bundle_code', line.bundle_code),
                 'marble_thickness': vals.get('marble_thickness', line.marble_thickness),
             }
 

@@ -14,9 +14,8 @@ class StockMove(models.Model):
     # Campos de mármol
     marble_height = fields.Float('Altura (m)')
     marble_width = fields.Float('Ancho (m)')
-    marble_sqm = fields.Float('Metros Cuadrados', compute='_compute_marble_sqm', store=True, readonly=False)
-    lot_general = fields.Char('Lote General')
-    bundle_code = fields.Char('Bundle Code')
+    marble_sqm = fields.Float('m²', compute='_compute_marble_sqm', store=True, readonly=False)
+    lot_general = fields.Char('Lote')
     marble_thickness = fields.Float('Grosor (cm)')
 
     # Campo computado para distinguir entregas
@@ -29,7 +28,7 @@ class StockMove(models.Model):
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
         """
-        Calcula automáticamente los metros cuadrados basado en altura x ancho
+        Calcula automáticamente los m² basado en altura x ancho
         """
         for move in self:
             move.marble_sqm = (move.marble_height or 0.0) * (move.marble_width or 0.0)
@@ -53,7 +52,7 @@ class StockMove(models.Model):
         Método write mejorado - Delega la creación de lotes a StockMoveLine
         """
         # Si no hay cambios relacionados con lotes, usar comportamiento normal
-        if not any(field in vals for field in ['lot_general', 'marble_height', 'marble_width', 'marble_thickness', 'bundle_code']):
+        if not any(field in vals for field in ['lot_general', 'marble_height', 'marble_width', 'marble_thickness']):
             return super().write(vals)
 
         _logger.info(f"[STOCK-MOVE-WRITE] Actualizando {len(self)} moves con campos de mármol")
@@ -74,7 +73,6 @@ class StockMove(models.Model):
                             'marble_height': vals.get('marble_height', move.marble_height),
                             'marble_width': vals.get('marble_width', move.marble_width),
                             'marble_thickness': vals.get('marble_thickness', move.marble_thickness),
-                            'bundle_code': vals.get('bundle_code', move.bundle_code),
                         })
 
         # Llamar al método padre para actualizar los campos del move
@@ -92,7 +90,6 @@ class StockMove(models.Model):
             'marble_width': self.marble_width,
             'marble_sqm': self.marble_sqm,
             'lot_general': self.lot_general,
-            'bundle_code': self.bundle_code,
             'marble_thickness': self.marble_thickness,
         })
 
@@ -109,7 +106,7 @@ class StockMove(models.Model):
                 if not line.lot_id and move.lot_id:
                     line.lot_id = move.lot_id
                 for attr in ('marble_height', 'marble_width', 'marble_sqm',
-                             'lot_general', 'bundle_code', 'marble_thickness'):
+                             'lot_general', 'marble_thickness'):
                     if not getattr(line, attr):
                         setattr(line, attr, getattr(move, attr))
                 if hasattr(move, 'pedimento_number') and hasattr(line, 'pedimento_number'):
