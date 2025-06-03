@@ -144,22 +144,37 @@ class SaleOrderLine(models.Model):
                           'Debe seleccionar un lote específico.') % line.product_id.name
                     )
 
-    # ---------- Propagación al procurement ----------
+# ---------- Propagación al procurement MEJORADA ----------
     def _prepare_procurement_values(self, group_id=False):
         vals = super()._prepare_procurement_values(group_id)
+        
+        # LOGGING para debug - ver qué valores tenemos en la línea de venta
+        _logger.info(f"[PROCUREMENT-VALUES-DEBUG] SO Line {self.id}:")
+        _logger.info(f"  - marble_height: {self.marble_height}")
+        _logger.info(f"  - marble_width: {self.marble_width}")
+        _logger.info(f"  - marble_sqm: {self.marble_sqm}")
+        _logger.info(f"  - lot_general: {self.lot_general}")
+        _logger.info(f"  - marble_thickness: {self.marble_thickness}")
+        _logger.info(f"  - lot_id: {self.lot_id.id if self.lot_id else 'None'}")
         
         # Solo propagar lot_id si existe
         if self.lot_id:
             vals['lot_id'] = self.lot_id.id
             
+        # PROPAGAR SIEMPRE los campos de mármol, incluso si son 0.0 o vacíos
+        # Esto es crítico para MTO cuando vendes "metros cuadrados sin dimensiones específicas"
         vals.update({
-            'marble_height':    self.marble_height,
-            'marble_width':     self.marble_width,
-            'marble_sqm':       self.marble_sqm,
-            'lot_general':      self.lot_general,
-            'pedimento_number': self.pedimento_number,
-            'marble_thickness': self.marble_thickness,
+            'marble_height':    self.marble_height or 0.0,
+            'marble_width':     self.marble_width or 0.0,
+            'marble_sqm':       self.marble_sqm or 0.0,
+            'lot_general':      self.lot_general or '',
+            'pedimento_number': self.pedimento_number or '',
+            'marble_thickness': self.marble_thickness or 0.0,
         })
+        
+        # LOGGING para ver qué se está enviando al procurement
+        _logger.info(f"[PROCUREMENT-VALUES-DEBUG] Valores enviados al procurement: {vals}")
+        
         return vals
     
     def _action_launch_stock_rule(self, previous_product_uom_qty=False):
