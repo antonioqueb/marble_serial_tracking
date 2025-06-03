@@ -14,7 +14,15 @@ class PurchaseOrderLine(models.Model):
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
+        """
+        Compute que respeta valores establecidos desde procurement
+        """
         for line in self:
+            # Si viene desde procurement, NO recalcular
+            if self.env.context.get('from_procurement'):
+                _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: Respetando valor desde procurement")
+                continue
+                
             altura = line.marble_height or 0.0
             ancho = line.marble_width or 0.0
 
@@ -25,8 +33,10 @@ class PurchaseOrderLine(models.Model):
                 line.marble_sqm = line._origin.marble_sqm
                 _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: Manteniendo valor original marble_sqm={line.marble_sqm}")
             else:
-                line.marble_sqm = 0.0
-                _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: Sin dimensiones ni valor original, establecido en 0")
+                # Solo resetear a 0 si no hay valor previo y es edición manual
+                if not getattr(line, '_marble_sqm_from_sale', False):
+                    line.marble_sqm = 0.0
+                    _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: Sin dimensiones ni valor original, establecido en 0")
 
     @api.onchange('marble_height', 'marble_width', 'lot_general')
     def _onchange_marble_fields(self):
@@ -34,9 +44,17 @@ class PurchaseOrderLine(models.Model):
             _logger.info(f"[MARBLE-ONCHANGE] (onchange) PO Line ID {line.id} → altura={line.marble_height}, ancho={line.marble_width}, lote={line.lot_general}")
 
     def write(self, vals):
+        # Si viene desde procurement, marcar para evitar recálculo
+        if self.env.context.get('from_procurement') and 'marble_sqm' in vals:
+            for line in self:
+                line._marble_sqm_from_sale = True
+                _logger.info(f"[MARBLE-WRITE] PO Line {line.id}: Marcando marble_sqm como desde venta")
+        
         for line in self:
             _logger.info(f"[MARBLE-WRITE] Intentando escribir en PO Line {line.id} con: {vals}")
+        
         res = super().write(vals)
+        
         for line in self:
             _logger.info(f"[MARBLE-WRITE] Línea PO {line.id} actualizada - Valores finales:")
             _logger.info(f"  - marble_height: {line.marble_height}")
@@ -49,7 +67,14 @@ class PurchaseOrderLine(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             _logger.info(f"[MARBLE-CREATE] Creando línea PO con valores: {vals}")
+            
+            # Si viene marble_sqm desde procurement, marcarlo y respetarlo
+            if vals.get('marble_sqm', 0.0) > 0:
+                vals['_marble_sqm_from_sale'] = True
+                _logger.info(f"[MARBLE-CREATE] Respetando marble_sqm desde procurement: {vals['marble_sqm']}")
+        
         lines = super().create(vals_list)
+        
         for vals, line in zip(vals_list, lines):
             _logger.info(f"[MARBLE-CREATE] Línea PO creada ID {line.id}:")
             _logger.info(f"  - marble_height: {line.marble_height}")
