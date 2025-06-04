@@ -14,85 +14,54 @@ class PurchaseOrderLine(models.Model):
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
-        """
-        Compute que respeta valores establecidos desde procurement
-        """
         for line in self:
-            # Si viene desde procurement, NO recalcular
-            if self.env.context.get('from_procurement'):
-                _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: Respetando valor desde procurement")
-                continue
-
             altura = line.marble_height or 0.0
             ancho = line.marble_width or 0.0
 
             if altura > 0 and ancho > 0:
                 line.marble_sqm = altura * ancho
-                _logger.debug(
-                    f"[MARBLE-COMPUTE] PO Line ID {line.id}: altura={altura}, ancho={ancho} → m²={line.marble_sqm}"
-                )
+                _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: altura={altura}, ancho={ancho} → m²={line.marble_sqm}")
             elif line._origin and line._origin.marble_sqm > 0:
-                # Mantener valor original si existía
                 line.marble_sqm = line._origin.marble_sqm
-                _logger.debug(
-                    f"[MARBLE-COMPUTE] PO Line ID {line.id}: Manteniendo valor original marble_sqm={line.marble_sqm}"
-                )
+                _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: Manteniendo valor original marble_sqm={line.marble_sqm}")
             else:
-                # Resetear a 0 si no hay dimensiones ni valor previo
                 line.marble_sqm = 0.0
-                _logger.debug(
-                    f"[MARBLE-COMPUTE] PO Line ID {line.id}: Sin dimensiones ni valor original, establecido en 0"
-                )
+                _logger.debug(f"[MARBLE-COMPUTE] PO Line ID {line.id}: Sin dimensiones ni valor original, establecido en 0")
 
     @api.onchange('marble_height', 'marble_width', 'lot_general')
     def _onchange_marble_fields(self):
         for line in self:
-            _logger.info(
-                f"[MARBLE-ONCHANGE] (onchange) PO Line ID {line.id} → "
-                f"altura={line.marble_height}, ancho={line.marble_width}, lote={line.lot_general}"
-            )
+            _logger.info(f"[MARBLE-ONCHANGE] (onchange) PO Line ID {line.id} → altura={line.marble_height}, ancho={line.marble_width}, lote={line.lot_general}")
 
     def write(self, vals):
-        # Si viene desde procurement, no marcamos ningún flag adicional
         for line in self:
             _logger.info(f"[MARBLE-WRITE] Intentando escribir en PO Line {line.id} con: {vals}")
-
         res = super().write(vals)
-
         for line in self:
-            _logger.info(
-                f"[MARBLE-WRITE] Línea PO {line.id} actualizada - Valores finales:\n"
-                f"  - marble_height: {line.marble_height}\n"
-                f"  - marble_width: {line.marble_width}\n"
-                f"  - marble_sqm: {line.marble_sqm}\n"
-                f"  - lot_general: {line.lot_general}"
-            )
+            _logger.info(f"[MARBLE-WRITE] Línea PO {line.id} actualizada - Valores finales:")
+            _logger.info(f"  - marble_height: {line.marble_height}")
+            _logger.info(f"  - marble_width: {line.marble_width}")
+            _logger.info(f"  - marble_sqm: {line.marble_sqm}")
+            _logger.info(f"  - lot_general: {line.lot_general}")
         return res
 
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             _logger.info(f"[MARBLE-CREATE] Creando línea PO con valores: {vals}")
-            # No marcamos flags; simplemente creamos la línea con los valores que vengan
         lines = super().create(vals_list)
-
         for vals, line in zip(vals_list, lines):
-            _logger.info(
-                f"[MARBLE-CREATE] Línea PO creada ID {line.id}:\n"
-                f"  - marble_height: {line.marble_height}\n"
-                f"  - marble_width: {line.marble_width}\n"
-                f"  - marble_sqm: {line.marble_sqm}\n"
-                f"  - lot_general: {line.lot_general}"
-            )
+            _logger.info(f"[MARBLE-CREATE] Línea PO creada ID {line.id}:")
+            _logger.info(f"  - marble_height: {line.marble_height}")
+            _logger.info(f"  - marble_width: {line.marble_width}")
+            _logger.info(f"  - marble_sqm: {line.marble_sqm}")
+            _logger.info(f"  - lot_general: {line.lot_general}")
         return lines
 
     def _prepare_stock_move_vals(self, picking, price_unit, product_uom_qty, product_uom):
         self.ensure_one()
         _logger.info(f"[MARBLE-MOVE-VALS] Ejecutando _prepare_stock_move_vals en PO Line ID {self.id}")
-        _logger.info(
-            f"[MARBLE-MOVE-VALS] Datos actuales: altura={self.marble_height}, "
-            f"ancho={self.marble_width}, m²={self.marble_sqm}, lote={self.lot_general}"
-        )
+        _logger.info(f"[MARBLE-MOVE-VALS] Datos actuales: altura={self.marble_height}, ancho={self.marble_width}, m²={self.marble_sqm}, lote={self.lot_general}")
         vals = super()._prepare_stock_move_vals(picking, price_unit, product_uom_qty, product_uom)
         vals.update({
             'marble_height': self.marble_height or 0.0,
