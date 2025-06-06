@@ -9,33 +9,33 @@
                 
                 <!-- WIDGET DUAL PARA LOT_GENERAL -->
                 <field name="lot_selection_mode" 
-                       invisible="picking_type_code == 'incoming'"
+                       invisible="is_outgoing == False"
                        string="Modo"
                        widget="radio"
                        options="{'horizontal': true}"/>
                 
                 <!-- Campo para seleccionar lote existente (solo en salidas) -->
                 <field name="existing_lot_id" 
-                       invisible="lot_selection_mode != 'existing' or picking_type_code == 'incoming'"
+                       invisible="lot_selection_mode != 'existing' or is_outgoing == False"
                        string="Lote Disponible"
                        placeholder="Seleccione un lote disponible..."/>
                 
                 <!-- Campo lot_general manual -->
                 <field name="lot_general" 
-                       readonly="lot_selection_mode == 'existing' and picking_type_code != 'incoming'"
+                       readonly="lot_selection_mode == 'existing' and is_outgoing == True"
                        placeholder="Ingrese nombre del lote..."
-                       decoration-info="lot_selection_mode == 'manual' or picking_type_code == 'incoming'"
+                       decoration-info="lot_selection_mode == 'manual' or is_outgoing == False"
                        decoration-muted="lot_selection_mode == 'existing'"/>
                 
                 <!-- Campos de dimensiones -->
                 <field name="marble_thickness" 
-                       readonly="lot_selection_mode == 'existing' and picking_type_code != 'incoming'"
+                       readonly="lot_selection_mode == 'existing' and is_outgoing == True"
                        string="Grosor (cm)"/>
                 <field name="marble_height" 
-                       readonly="lot_selection_mode == 'existing' and picking_type_code != 'incoming'"
+                       readonly="lot_selection_mode == 'existing' and is_outgoing == True"
                        string="Altura (m)"/>
                 <field name="marble_width" 
-                       readonly="lot_selection_mode == 'existing' and picking_type_code != 'incoming'"
+                       readonly="lot_selection_mode == 'existing' and is_outgoing == True"
                        string="Ancho (m)"/>
                 <field name="marble_sqm" 
                        readonly="1"

@@ -76,7 +76,7 @@ class StockMove(models.Model):
             self.marble_thickness = lot.marble_thickness
             
             # Para salidas, también asignar el lot_id
-            if self.picking_type_id.code == 'outgoing':
+            if self.is_outgoing:
                 self.lot_id = lot.id
                 self.so_lot_id = lot.id
             
@@ -127,13 +127,13 @@ class StockMove(models.Model):
                     })
                     
                     # Para salidas, asignar lot_id
-                    if move.picking_type_id.code == 'outgoing':
+                    if move.is_outgoing:
                         vals['lot_id'] = lot.id
                         vals['so_lot_id'] = lot.id
                     
                     _logger.info(f"[STOCK-MOVE-WRITE] Modo existente: usando lote {lot.name}")
             
-            elif 'lot_general' in vals and vals['lot_general'] and move.picking_type_id.code == 'incoming':
+            elif 'lot_general' in vals and vals['lot_general'] and not move.is_outgoing:
                 # Modo manual para ingresos: crear nuevo lote (comportamiento actual)
                 move_lines_without_lot = move.move_line_ids.filtered(lambda ml: not ml.lot_id)
                 if move_lines_without_lot:
