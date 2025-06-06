@@ -1,21 +1,53 @@
 <odoo>
-# funcionalidad de mármol
     <record id="view_picking_form_inherit_marble" model="ir.ui.view">
         <field name="name">stock.picking.form.marble</field>
         <field name="model">stock.picking</field>
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
 
-            <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_id']"
-                position="after">
-                <field name="marble_thickness"/>
-                <field name="lot_id" invisible="not is_outgoing"/>
-                <field name="marble_height"/>
-                <field name="marble_width"/>
-                <field name="marble_sqm"/>
-                <field name="lot_general"/>
+            <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_id']" position="after">
+                
+                <!-- WIDGET DUAL PARA LOT_GENERAL -->
+                <field name="lot_selection_mode" 
+                       invisible="picking_type_code == 'incoming'"
+                       string="Modo"
+                       widget="radio"
+                       options="{'horizontal': true}"/>
+                
+                <!-- Campo para seleccionar lote existente (solo en salidas) -->
+                <field name="existing_lot_id" 
+                       invisible="lot_selection_mode != 'existing' or picking_type_code == 'incoming'"
+                       string="Lote Disponible"
+                       placeholder="Seleccione un lote disponible..."/>
+                
+                <!-- Campo lot_general manual -->
+                <field name="lot_general" 
+                       readonly="lot_selection_mode == 'existing' and picking_type_code != 'incoming'"
+                       placeholder="Ingrese nombre del lote..."
+                       decoration-info="lot_selection_mode == 'manual' or picking_type_code == 'incoming'"
+                       decoration-muted="lot_selection_mode == 'existing'"/>
+                
+                <!-- Campos de dimensiones -->
+                <field name="marble_thickness" 
+                       readonly="lot_selection_mode == 'existing' and picking_type_code != 'incoming'"
+                       string="Grosor (cm)"/>
+                <field name="marble_height" 
+                       readonly="lot_selection_mode == 'existing' and picking_type_code != 'incoming'"
+                       string="Altura (m)"/>
+                <field name="marble_width" 
+                       readonly="lot_selection_mode == 'existing' and picking_type_code != 'incoming'"
+                       string="Ancho (m)"/>
+                <field name="marble_sqm" 
+                       readonly="1"
+                       string="m²"/>
+                
+                <!-- Campos invisibles pero funcionales -->
+                <field name="lot_id" invisible="1"/>
+                <field name="so_lot_id" invisible="1"/>
+                <field name="available_lot_ids" invisible="1"/>
+                <field name="is_outgoing" invisible="1"/>
+                
             </xpath>
-
 
         </field>
     </record>

@@ -7,23 +7,80 @@ _logger = logging.getLogger(__name__)
 class StockMove(models.Model):
     _inherit = 'stock.move'
 
-    # Campos de tracking desde la venta
+    # Campos existentes
     so_lot_id = fields.Many2one('stock.lot', string="Lote Forzado (Venta)")
     lot_id = fields.Many2one('stock.lot', string='Número de Serie (Venta)')
-
-    # Campos de mármol
     marble_height = fields.Float('Altura (m)')
     marble_width = fields.Float('Ancho (m)')
     marble_sqm = fields.Float('m²', compute='_compute_marble_sqm', store=True, readonly=False)
     lot_general = fields.Char('Lote')
     marble_thickness = fields.Float('Grosor (cm)')
+    is_outgoing = fields.Boolean(string='Es Salida', compute='_compute_is_outgoing', store=True)
 
-    # Campo computado para distinguir entregas
-    is_outgoing = fields.Boolean(
-        string='Es Salida',
-        compute='_compute_is_outgoing',
-        store=True
+    # ========== NUEVOS CAMPOS PARA WIDGET DUAL ==========
+    lot_selection_mode = fields.Selection([
+        ('existing', 'Seleccionar Lote Existente'),
+        ('manual', 'Crear Nuevo Lote')
+    ], string='Modo de Lote', default='manual')
+    
+    existing_lot_id = fields.Many2one(
+        'stock.lot', 
+        string='Lote Existente',
+        domain="[('product_id', '=', product_id), ('id', 'in', available_lot_ids)]"
     )
+    
+    available_lot_ids = fields.Many2many(
+        'stock.lot', 
+        compute='_compute_available_lots',
+        string='Lotes Disponibles'
+    )
+
+    @api.depends('product_id')
+    def _compute_available_lots(self):
+        """Calcular lotes disponibles con stock para el producto"""
+        for move in self:
+            if move.product_id:
+                # Buscar quants con stock disponible
+                quants = self.env['stock.quant'].search([
+                    ('product_id', '=', move.product_id.id),
+                    ('quantity', '>', 0),
+                    ('location_id.usage', '=', 'internal'),
+                    ('lot_id', '!=', False)
+                ])
+                move.available_lot_ids = quants.mapped('lot_id')
+            else:
+                move.available_lot_ids = False
+
+    @api.onchange('lot_selection_mode')
+    def _onchange_lot_selection_mode(self):
+        """Reset campos cuando cambia el modo"""
+        if self.lot_selection_mode == 'existing':
+            # Limpiar campos manuales
+            self.lot_general = ''
+            self.marble_height = 0.0
+            self.marble_width = 0.0
+            self.marble_thickness = 0.0
+        else:  # manual
+            # Limpiar selección existente
+            self.existing_lot_id = False
+
+    @api.onchange('existing_lot_id')
+    def _onchange_existing_lot_id(self):
+        """Rellenar datos automáticamente cuando se selecciona un lote existente"""
+        if self.existing_lot_id and self.lot_selection_mode == 'existing':
+            lot = self.existing_lot_id
+            self.lot_general = lot.lot_general
+            self.marble_height = lot.marble_height
+            self.marble_width = lot.marble_width
+            self.marble_sqm = lot.marble_sqm
+            self.marble_thickness = lot.marble_thickness
+            
+            # Para salidas, también asignar el lot_id
+            if self.picking_type_id.code == 'outgoing':
+                self.lot_id = lot.id
+                self.so_lot_id = lot.id
+            
+            _logger.info(f"[LOT-SELECT] Move {self.id}: Datos cargados desde lote {lot.name}")
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
@@ -48,36 +105,47 @@ class StockMove(models.Model):
             _logger.info(f"[MARBLE-ONCHANGE] Stock Move ID {move.id} → altura={move.marble_height}, ancho={move.marble_width}, lote={move.lot_general}")
 
     def write(self, vals):
-        """
-        Método write mejorado - Delega la creación de lotes a StockMoveLine
-        """
+        """Método write mejorado para manejar ambos modos"""
         # Si no hay cambios relacionados con lotes, usar comportamiento normal
-        if not any(field in vals for field in ['lot_general', 'marble_height', 'marble_width', 'marble_thickness']):
+        if not any(field in vals for field in ['lot_general', 'marble_height', 'marble_width', 'marble_thickness', 'existing_lot_id']):
             return super().write(vals)
 
         _logger.info(f"[STOCK-MOVE-WRITE] Actualizando {len(self)} moves con campos de mármol")
 
-        # Para moves de entrada con lot_general, propagar a las move_lines
         for move in self:
-            if 'lot_general' in vals and vals['lot_general']:
-                picking_code = move.picking_type_id.code
-                if picking_code == 'incoming':
-                    _logger.info(f"[STOCK-MOVE-WRITE] Propagando lot_general '{vals['lot_general']}' a move_lines del move {move.id}")
+            # Determinar si estamos en modo existente o manual
+            if 'existing_lot_id' in vals and vals['existing_lot_id']:
+                # Modo existente: usar datos del lote seleccionado
+                lot = self.env['stock.lot'].browse(vals['existing_lot_id'])
+                if lot:
+                    vals.update({
+                        'lot_general': lot.lot_general,
+                        'marble_height': lot.marble_height,
+                        'marble_width': lot.marble_width,
+                        'marble_sqm': lot.marble_sqm,
+                        'marble_thickness': lot.marble_thickness,
+                    })
                     
-                    # Propagar a move_lines que no tienen lote
-                    move_lines_without_lot = move.move_line_ids.filtered(lambda ml: not ml.lot_id)
-                    if move_lines_without_lot:
-                        # Los move_lines se encargarán de crear los lotes con su método write() mejorado
-                        move_lines_without_lot.write({
-                            'lot_general': vals['lot_general'],
-                            'marble_height': vals.get('marble_height', move.marble_height),
-                            'marble_width': vals.get('marble_width', move.marble_width),
-                            'marble_thickness': vals.get('marble_thickness', move.marble_thickness),
-                        })
+                    # Para salidas, asignar lot_id
+                    if move.picking_type_id.code == 'outgoing':
+                        vals['lot_id'] = lot.id
+                        vals['so_lot_id'] = lot.id
+                    
+                    _logger.info(f"[STOCK-MOVE-WRITE] Modo existente: usando lote {lot.name}")
+            
+            elif 'lot_general' in vals and vals['lot_general'] and move.picking_type_id.code == 'incoming':
+                # Modo manual para ingresos: crear nuevo lote (comportamiento actual)
+                move_lines_without_lot = move.move_line_ids.filtered(lambda ml: not ml.lot_id)
+                if move_lines_without_lot:
+                    move_lines_without_lot.write({
+                        'lot_general': vals['lot_general'],
+                        'marble_height': vals.get('marble_height', move.marble_height),
+                        'marble_width': vals.get('marble_width', move.marble_width),
+                        'marble_thickness': vals.get('marble_thickness', move.marble_thickness),
+                    })
 
         # Llamar al método padre para actualizar los campos del move
-        res = super().write(vals)
-        return res
+        return super().write(vals)
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
