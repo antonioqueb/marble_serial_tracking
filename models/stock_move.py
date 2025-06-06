@@ -17,6 +17,9 @@ class StockMove(models.Model):
     marble_thickness = fields.Float('Grosor (cm)')
     is_outgoing = fields.Boolean(string='Es Salida', compute='_compute_is_outgoing', store=True)
 
+    # AÑADIR CAMPO PEDIMENTO
+    pedimento_number = fields.Char(string='Número de Pedimento', size=18)
+
     # ========== NUEVOS CAMPOS PARA WIDGET DUAL ==========
     lot_selection_mode = fields.Selection([
         ('existing', 'Seleccionar Lote Existente'),
@@ -60,6 +63,7 @@ class StockMove(models.Model):
             self.marble_height = 0.0
             self.marble_width = 0.0
             self.marble_thickness = 0.0
+            self.pedimento_number = ''
         else:  # manual
             # Limpiar selección existente
             self.existing_lot_id = False
@@ -75,12 +79,21 @@ class StockMove(models.Model):
             self.marble_sqm = lot.marble_sqm
             self.marble_thickness = lot.marble_thickness
             
+            # BUSCAR PEDIMENTO DEL LOTE
+            if lot:
+                quant = self.env['stock.quant'].search([
+                    ('lot_id', '=', lot.id),
+                    ('quantity', '>', 0),
+                    ('location_id.usage', '=', 'internal'),
+                ], limit=1, order='in_date DESC')
+                self.pedimento_number = quant.pedimento_number or ''
+            
             # Para salidas, también asignar el lot_id
             if self.is_outgoing:
                 self.lot_id = lot.id
                 self.so_lot_id = lot.id
             
-            _logger.info(f"[LOT-SELECT] Move {self.id}: Datos cargados desde lote {lot.name}")
+            _logger.info(f"[LOT-SELECT] Move {self.id}: Datos cargados desde lote {lot.name}, pedimento: {self.pedimento_number}")
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
@@ -107,7 +120,7 @@ class StockMove(models.Model):
     def write(self, vals):
         """Método write mejorado para manejar ambos modos"""
         # Si no hay cambios relacionados con lotes, usar comportamiento normal
-        if not any(field in vals for field in ['lot_general', 'marble_height', 'marble_width', 'marble_thickness', 'existing_lot_id']):
+        if not any(field in vals for field in ['lot_general', 'marble_height', 'marble_width', 'marble_thickness', 'existing_lot_id', 'pedimento_number']):
             return super().write(vals)
 
         _logger.info(f"[STOCK-MOVE-WRITE] Actualizando {len(self)} moves con campos de mármol")
@@ -118,12 +131,20 @@ class StockMove(models.Model):
                 # Modo existente: usar datos del lote seleccionado
                 lot = self.env['stock.lot'].browse(vals['existing_lot_id'])
                 if lot:
+                    # Buscar pedimento del lote
+                    quant = self.env['stock.quant'].search([
+                        ('lot_id', '=', lot.id),
+                        ('quantity', '>', 0),
+                        ('location_id.usage', '=', 'internal'),
+                    ], limit=1, order='in_date DESC')
+                    
                     vals.update({
                         'lot_general': lot.lot_general,
                         'marble_height': lot.marble_height,
                         'marble_width': lot.marble_width,
                         'marble_sqm': lot.marble_sqm,
                         'marble_thickness': lot.marble_thickness,
+                        'pedimento_number': quant.pedimento_number or '',
                     })
                     
                     # Para salidas, asignar lot_id
@@ -131,7 +152,7 @@ class StockMove(models.Model):
                         vals['lot_id'] = lot.id
                         vals['so_lot_id'] = lot.id
                     
-                    _logger.info(f"[STOCK-MOVE-WRITE] Modo existente: usando lote {lot.name}")
+                    _logger.info(f"[STOCK-MOVE-WRITE] Modo existente: usando lote {lot.name}, pedimento: {vals.get('pedimento_number')}")
             
             elif 'lot_general' in vals and vals['lot_general'] and not move.is_outgoing:
                 # Modo manual para ingresos: crear nuevo lote (comportamiento actual)
@@ -142,6 +163,7 @@ class StockMove(models.Model):
                         'marble_height': vals.get('marble_height', move.marble_height),
                         'marble_width': vals.get('marble_width', move.marble_width),
                         'marble_thickness': vals.get('marble_thickness', move.marble_thickness),
+                        'pedimento_number': vals.get('pedimento_number', move.pedimento_number),
                     })
 
         # Llamar al método padre para actualizar los campos del move
@@ -164,6 +186,7 @@ class StockMove(models.Model):
                     'marble_sqm': move.marble_sqm,
                     'lot_general': move.lot_general,
                     'marble_thickness': move.marble_thickness,
+                    'pedimento_number': move.pedimento_number or '',  # AÑADIDO
                 }
                 
                 # Si hay lot_id en el move, también propagarlo
@@ -172,7 +195,7 @@ class StockMove(models.Model):
                 
                 # Actualizar todas las move_lines
                 move.move_line_ids.write(move_line_vals)
-                _logger.info(f"[PROPAGATE] Move {move.id}: Datos propagados a {len(move.move_line_ids)} move_lines")
+                _logger.info(f"[PROPAGATE] Move {move.id}: Datos propagados a {len(move.move_line_ids)} move_lines, pedimento: {move.pedimento_number}")
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
@@ -184,15 +207,12 @@ class StockMove(models.Model):
             'marble_sqm': self.marble_sqm or 0.0,
             'lot_general': self.lot_general or '',
             'marble_thickness': self.marble_thickness or 0.0,
+            'pedimento_number': self.pedimento_number or '',  # AÑADIDO
         })
 
         # Lot ID para salidas
         if self.lot_id:
             vals['lot_id'] = self.lot_id.id
-
-        # Pedimento si existe
-        if hasattr(self, 'pedimento_number') and self.pedimento_number:
-            vals['pedimento_number'] = self.pedimento_number
 
         _logger.info(f"[PREPARE-MOVE-LINE] Move {self.id}: {vals}")
         return vals

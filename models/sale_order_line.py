@@ -134,10 +134,17 @@ class SaleOrderLine(models.Model):
     def _check_lot_requirement(self):
         """
         Validación: Si hay stock disponible, debe seleccionarse un lote
-        Solo aplica si el producto usa tracking
+        Solo aplica si el producto usa tracking Y NO es MTO
         """
         for line in self:
             if line.product_id and line.product_id.tracking != 'none':
+                # EXCLUIR PRODUCTOS MTO de la validación
+                is_mto = any(rule.action == 'buy' and rule.procure_method == 'make_to_order' 
+                            for route in line.product_id.route_ids 
+                            for rule in route.rule_ids)
+                if is_mto:
+                    continue
+                
                 if line.available_lot_ids and not line.lot_id:
                     raise ValidationError(
                         _('El producto "%s" tiene stock disponible. '
