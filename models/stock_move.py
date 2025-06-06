@@ -19,8 +19,8 @@ class StockMove(models.Model):
 
     # ========== NUEVOS CAMPOS PARA WIDGET DUAL ==========
     lot_selection_mode = fields.Selection([
-        ('existing', 'Seleccionar Lote Existente'),
-        ('manual', 'Crear Nuevo Lote')
+        ('existing', 'Lote Existente'),
+        ('manual', 'Crear Lote')
     ], string='Modo de Lote', default='manual')
     
     existing_lot_id = fields.Many2one(
