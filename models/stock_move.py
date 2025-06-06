@@ -225,11 +225,11 @@ class StockMove(models.Model):
         
         return result
 
-    def _action_done(self):
-        """Sobrescribir para asegurar datos finales antes de marcar como hecho"""
+    def _action_done(self, cancel_backorder=False):
+        """CORREGIDO: Aceptar parámetro cancel_backorder"""
         # Propagar datos antes de finalizar
         for move in self:
             if move.move_line_ids:
                 move._propagate_marble_data_to_move_lines()
         
-        return super()._action_done()
+        return super()._action_done(cancel_backorder=cancel_backorder)
