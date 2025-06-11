@@ -151,7 +151,7 @@ class SaleOrderLine(models.Model):
                           'Debe seleccionar un lote específico.') % line.product_id.name
                     )
 
-# ---------- Propagación al procurement MEJORADA ----------
+    # ---------- Propagación al procurement MEJORADA ----------
     def _prepare_procurement_values(self, group_id=False):
         vals = super()._prepare_procurement_values(group_id)
         
@@ -177,6 +177,7 @@ class SaleOrderLine(models.Model):
             'lot_general':      self.lot_general or '',
             'pedimento_number': self.pedimento_number or '',
             'marble_thickness': self.marble_thickness or 0.0,
+            'sale_line_id':     self.id,  # IMPORTANTE: mantener referencia a la línea
         })
         
         # LOGGING para ver qué se está enviando al procurement
@@ -187,22 +188,44 @@ class SaleOrderLine(models.Model):
     def _action_launch_stock_rule(self, previous_product_uom_qty=False):
         """
         Sobrescribir para asegurar que cada línea genere su propio procurement
+        y mantenga la trazabilidad correcta
         """
-        # Procesar cada línea individualmente
+        # Procesar cada línea individualmente para mantener la asociación correcta
         for line in self:
-            # Si el producto tiene tracking, crear un grupo único para cada línea
-            if line.product_id.tracking != 'none':
+            # Log para debugging
+            _logger.info(f"[LAUNCH-STOCK-RULE] Procesando línea {line.id} con lote {line.lot_id.name if line.lot_id else 'Sin lote'}")
+            
+            # Si el producto tiene tracking o tiene datos de mármol, crear un grupo único
+            if line.product_id.tracking != 'none' or line.marble_sqm > 0:
                 # Crear un grupo de procurement único para esta línea
                 group = self.env['procurement.group'].create({
-                    'name': f"{line.order_id.name}/{line.id}",
+                    'name': f"{line.order_id.name}/L{line.id}",
                     'sale_id': line.order_id.id,
                     'partner_id': line.order_id.partner_id.id,
                 })
                 
-                # Forzar el uso de este grupo específico
-                line_with_context = line.with_context(default_group_id=group.id)
+                # Preparar valores con todos los datos de mármol
+                proc_values = line._prepare_procurement_values(group_id=group.id)
                 
-                _logger.info(f"Creando procurement individual para línea {line.id} con grupo {group.name}")
+                # Asegurar que todos los campos estén presentes
+                proc_values.update({
+                    'marble_height': line.marble_height,
+                    'marble_width': line.marble_width,
+                    'marble_sqm': line.marble_sqm,
+                    'lot_general': line.lot_general,
+                    'marble_thickness': line.marble_thickness,
+                    'pedimento_number': line.pedimento_number,
+                    'lot_id': line.lot_id.id if line.lot_id else False,
+                    'sale_line_id': line.id,  # Importante: mantener referencia a la línea
+                })
+                
+                _logger.info(f"[LAUNCH-STOCK-RULE] Grupo creado: {group.name} con valores: {proc_values}")
+                
+                # Forzar el uso de este grupo específico
+                line_with_context = line.with_context(
+                    default_group_id=group.id,
+                    force_procurement_values=proc_values
+                )
                 
                 # Llamar al método padre para esta línea específica
                 super(SaleOrderLine, line_with_context)._action_launch_stock_rule(previous_product_uom_qty)

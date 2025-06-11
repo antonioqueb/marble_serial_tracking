@@ -198,23 +198,40 @@ class StockMove(models.Model):
                 _logger.info(f"[PROPAGATE] Move {move.id}: Datos propagados a {len(move.move_line_ids)} move_lines, pedimento: {move.pedimento_number}")
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
+        """
+        Sobrescribir para asegurar que los datos de mármol se propaguen
+        correctamente a las move_lines
+        """
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
-
-        # MEJORADO: Asegurar que todos los datos se incluyan
-        vals.update({
+        
+        # Asegurar que TODOS los datos se incluyan
+        marble_vals = {
             'marble_height': self.marble_height or 0.0,
             'marble_width': self.marble_width or 0.0,
             'marble_sqm': self.marble_sqm or 0.0,
             'lot_general': self.lot_general or '',
             'marble_thickness': self.marble_thickness or 0.0,
-            'pedimento_number': self.pedimento_number or '',  # AÑADIDO
-        })
-
-        # Lot ID para salidas
-        if self.lot_id:
-            vals['lot_id'] = self.lot_id.id
-
-        _logger.info(f"[PREPARE-MOVE-LINE] Move {self.id}: {vals}")
+            'pedimento_number': self.pedimento_number or '',
+        }
+        
+        # Si es una salida y hay lote específico
+        if self.picking_type_id.code == 'outgoing' and self.lot_id:
+            marble_vals['lot_id'] = self.lot_id.id
+            
+            # Si el lote tiene datos, usarlos como respaldo
+            lot = self.lot_id
+            if lot:
+                marble_vals.update({
+                    'marble_height': self.marble_height or lot.marble_height or 0.0,
+                    'marble_width': self.marble_width or lot.marble_width or 0.0,
+                    'marble_sqm': self.marble_sqm or lot.marble_sqm or 0.0,
+                    'lot_general': self.lot_general or lot.lot_general or '',
+                    'marble_thickness': self.marble_thickness or lot.marble_thickness or 0.0,
+                })
+        
+        vals.update(marble_vals)
+        
+        _logger.info(f"[PREPARE-MOVE-LINE] Move {self.id}: Valores para move_line: {vals}")
         return vals
 
     def _create_move_lines(self):
@@ -229,19 +246,34 @@ class StockMove(models.Model):
         return res
 
     def _action_assign(self):
-        """Sobrescribir para manejar asignación con lotes específicos"""
+        """
+        Sobrescribir para asegurar propagación correcta durante la asignación
+        """
         result = super()._action_assign()
         
-        # Después de asignar, asegurar que los datos estén propagados
+        # Después de asignar, asegurar que los datos estén correctamente propagados
         for move in self:
-            if move.lot_id and move.move_line_ids:
-                # Forzar lot_id en todas las move_lines
-                for line in move.move_line_ids:
-                    if not line.lot_id:
-                        line.lot_id = move.lot_id
+            if move.move_line_ids:
+                _logger.info(f"[ACTION-ASSIGN] Propagando datos para move {move.id}")
                 
-                # Propagar datos de mármol
-                move._propagate_marble_data_to_move_lines()
+                # Si el move tiene datos de mármol, propagarlos a TODAS sus move_lines
+                if move.marble_sqm > 0 or move.lot_general:
+                    for line in move.move_line_ids:
+                        line_vals = {
+                            'marble_height': move.marble_height,
+                            'marble_width': move.marble_width,
+                            'marble_sqm': move.marble_sqm,
+                            'lot_general': move.lot_general,
+                            'marble_thickness': move.marble_thickness,
+                            'pedimento_number': move.pedimento_number,
+                        }
+                        
+                        # Si hay lote específico, asegurarse de que esté asignado
+                        if move.lot_id and not line.lot_id:
+                            line_vals['lot_id'] = move.lot_id.id
+                        
+                        line.write(line_vals)
+                        _logger.info(f"[ACTION-ASSIGN] Move line {line.id} actualizada con: {line_vals}")
         
         return result
 
