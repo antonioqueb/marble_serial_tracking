@@ -11,17 +11,17 @@ class PurchaseOrderLine(models.Model):
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
+        """
+        Lógica de cálculo HÍBRIDA:
+        - Si se especifican altura y ancho, calcula los m².
+        - Si NO se especifican, NO HACE NADA, permitiendo que el valor
+          introducido manualmente por el usuario se conserve.
+        """
         for line in self:
-            altura = line.marble_height or 0.0
-            ancho = line.marble_width or 0.0
+            if line.marble_height > 0 and line.marble_width > 0:
+                line.marble_sqm = line.marble_height * line.marble_width
 
-            if altura > 0 and ancho > 0:
-                line.marble_sqm = altura * ancho
-            elif line._origin and line._origin.marble_sqm > 0:
-                line.marble_sqm = line._origin.marble_sqm
-            else:
-                line.marble_sqm = 0.0
-
+    # El resto de los métodos se mantienen igual, son correctos.
     @api.onchange('marble_height', 'marble_width', 'lot_general')
     def _onchange_marble_fields(self):
         # Aquí puedes añadir lógica adicional si es necesario

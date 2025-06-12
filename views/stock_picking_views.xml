@@ -43,9 +43,9 @@
                 
                 <!-- Campos invisibles pero funcionales -->
                 <field name="lot_id" invisible="1"/>
-                <field name="so_lot_id" invisible="1"/>
+                 <!-- <field name="so_lot_id" invisible="1"/>
                 <field name="available_lot_ids" invisible="1"/>
-                <field name="is_outgoing" invisible="1"/>
+                <field name="is_outgoing" invisible="1"/>-->
                 
             </xpath>
 

@@ -5,28 +5,33 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
 
+            <!-- Vista Formulario -->
             <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="after">
                 <field name="marble_thickness"/>
                 <field name="marble_height"/>
                 <field name="marble_width"/>
-                <field name="marble_sqm" readonly="1"/>
+                <!-- CAMBIO: Se quita readonly="1" para que el campo sea editable -->
+                <field name="marble_sqm"/>
                 <field name="lot_general"/>
             </xpath>
 
+            <!-- Vista de Lista (Tree) -->
             <xpath expr="//field[@name='order_line']/list//field[@name='product_id']" position="after">
-                <field name="marble_thickness"/>
-                <field name="marble_height"/>
-                <field name="marble_width"/>
-                <field name="marble_sqm" readonly="1"/>
-                <field name="lot_general"/>
-
+                <field name="marble_thickness" optional="show"/>
+                <field name="marble_height" optional="show"/>
+                <field name="marble_width" optional="show"/>
+                <!-- CAMBIO: Se quita readonly="1" y se hace opcional -->
+                <field name="marble_sqm" optional="show"/>
+                <field name="lot_general" optional="show"/>
             </xpath>
 
+            <!-- Vista Kanban -->
             <xpath expr="//field[@name='order_line']/kanban//field[@name='product_id']" position="after">
                 <field name="marble_thickness"/>
                 <field name="marble_height"/>
                 <field name="marble_width"/>
-                <field name="marble_sqm" readonly="1"/>
+                <!-- CAMBIO: Se quita readonly="1" -->
+                <field name="marble_sqm"/>
                 <field name="lot_general"/>
             </xpath>
 
