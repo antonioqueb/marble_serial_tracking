@@ -15,7 +15,6 @@ class SaleOrderLine(models.Model):
         string='Número de Serie',
         domain="[('id', 'in', available_lot_ids)]",
     )
-
     available_lot_ids = fields.Many2many(
         'stock.lot',
         string='Lotes Disponibles',
@@ -24,9 +23,6 @@ class SaleOrderLine(models.Model):
 
     @api.depends('product_id')
     def _compute_available_lots(self):
-        """
-        Solo mostrar lotes con inventario disponible y en ubicaciones internas.
-        """
         Quant = self.env['stock.quant']
         for line in self:
             if line.product_id:
@@ -50,33 +46,11 @@ class SaleOrderLine(models.Model):
     )
 
     # ---------- Datos de mármol (EDITABLES) ----------
-    marble_height = fields.Float(
-        string='Altura (m)',
-        store=True,
-        readonly=False  # CAMBIADO: Ahora es editable
-    )
-    marble_width = fields.Float(
-        string='Ancho (m)',
-        store=True,
-        readonly=False  # CAMBIADO: Ahora es editable
-    )
-    marble_sqm = fields.Float(
-        string='m²',
-        compute='_compute_marble_sqm',
-        store=True,
-        readonly=False  # CAMBIADO: Ahora es editable
-    )
-    lot_general = fields.Char(
-        string='Lote',
-        store=True,
-        readonly=False  # CAMBIADO: Ahora es editable
-    )
-   
-    marble_thickness = fields.Float(
-        string='Grosor (cm)',
-        store=True,
-        readonly=False  # CAMBIADO: Ahora es editable
-    )
+    marble_height = fields.Float(string='Altura (m)', store=True, readonly=False)
+    marble_width = fields.Float(string='Ancho (m)', store=True, readonly=False)
+    marble_sqm = fields.Float(string='m²', compute='_compute_marble_sqm', store=True, readonly=False)
+    lot_general = fields.Char(string='Lote', store=True, readonly=False)
+    marble_thickness = fields.Float(string='Grosor (cm)', store=True, readonly=False)
 
     # =====================================================
     # LÓGICA ACTUALIZADA
@@ -84,92 +58,67 @@ class SaleOrderLine(models.Model):
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
-        """
-        Calcula automáticamente los m² cuando se modifican altura o ancho
-        """
         for line in self:
             if line.marble_height and line.marble_width:
                 line.marble_sqm = line.marble_height * line.marble_width
             elif not line.lot_id:
-                # Solo resetear si no hay lote seleccionado
                 line.marble_sqm = 0.0
 
     @api.onchange('lot_id')
     def _onchange_lot_id(self):
-        """
-        Cuando se selecciona un lote, actualizar los campos con los valores del lote
-        """
         if self.lot_id:
             self.marble_height = self.lot_id.marble_height
             self.marble_width = self.lot_id.marble_width
             self.marble_sqm = self.lot_id.marble_sqm
             self.lot_general = self.lot_id.lot_general
             self.marble_thickness = self.lot_id.marble_thickness
-            
-            _logger.info(f"[LOT-CHANGE] Campos actualizados desde lote {self.lot_id.name}")
 
     @api.depends('lot_id')
     def _compute_pedimento_number(self):
-        """
-        Cuando el usuario selecciona un lote, buscamos cualquier quant
-        (con existencias positivas) que tenga asignado un pedimento.
-        """
         Quant = self.env['stock.quant']
         for line in self:
-            ped = False
             if line.lot_id:
                 quant = Quant.search([
                     ('lot_id', '=', line.lot_id.id),
                     ('quantity', '>', 0),
                     ('location_id.usage', 'in', ['internal', 'transit']),
                 ], limit=1, order='in_date DESC')
-                ped = quant.pedimento_number or False
-            line.pedimento_number = ped
-            _logger.debug(
-                "[PED-SAL] SO Line %s → lote=%s → pedimento=%s",
-                line.id, line.lot_id.name if line.lot_id else '-', ped or '∅'
-            )
+                line.pedimento_number = quant.pedimento_number or ''
+            else:
+                line.pedimento_number = ''
 
     @api.constrains('lot_id', 'product_id')
     def _check_lot_requirement(self):
-        """
-        Validación: Si hay stock disponible, debe seleccionarse un lote
-        Solo aplica si el producto usa tracking Y NO es MTO
-        """
         for line in self:
             if line.product_id and line.product_id.tracking != 'none':
-                # EXCLUIR PRODUCTOS MTO de la validación
-                is_mto = any(rule.action == 'buy' and rule.procure_method == 'make_to_order' 
-                            for route in line.product_id.route_ids 
-                            for rule in route.rule_ids)
+                is_mto = any(
+                    rule.action == 'buy' and rule.procure_method == 'make_to_order'
+                    for route in line.product_id.route_ids
+                    for rule in route.rule_ids
+                )
                 if is_mto:
                     continue
-                
                 if line.available_lot_ids and not line.lot_id:
-                    raise ValidationError(
-                        _('El producto "%s" tiene stock disponible. '
-                          'Debe seleccionar un lote específico.') % line.product_id.name
-                    )
+                    raise ValidationError(_(
+                        'El producto "%s" tiene stock disponible. '
+                        'Debe seleccionar un lote específico.'
+                    ) % line.product_id.name)
 
-    # ---------- Propagación al procurement MEJORADA ----------
+    # ---------- Propagación al procurement ----------
     def _prepare_procurement_values(self, group_id=False):
         vals = super()._prepare_procurement_values(group_id)
         
-        # LOGGING para debug - ver qué valores tenemos en la línea de venta
-        _logger.info(f"[PROCUREMENT-VALUES-DEBUG] SO Line {self.id}:")
-        _logger.info(f"  - marble_height: {self.marble_height}")
-        _logger.info(f"  - marble_width: {self.marble_width}")
-        _logger.info(f"  - marble_sqm: {self.marble_sqm}")
-        _logger.info(f"  - lot_general: {self.lot_general}")
-        _logger.info(f"  - marble_thickness: {self.marble_thickness}")
-        _logger.info(f"  - lot_id: {self.lot_id.id if self.lot_id else 'None'}")
+        _logger.info(f"[SALE-PROCUREMENT] Línea {self.id} - Preparando valores para procurement:")
+        _logger.info(f"  - Producto: {self.product_id.name}")
+        _logger.info(f"  - Lote: {self.lot_id.name if self.lot_id else 'Sin lote'}")
+        _logger.info(f"  - Dimensiones: {self.marble_height}x{self.marble_width} = {self.marble_sqm}m²")
+        _logger.info(f"  - Lote General: {self.lot_general}")
+        _logger.info(f"  - Pedimento: {self.pedimento_number}")
         
         # Solo propagar lot_id si existe
         if self.lot_id:
             vals['lot_id'] = self.lot_id.id
-            
-        # PROPAGAR SIEMPRE los campos de mármol, incluso si son 0.0 o vacíos
-        # Esto es crítico para MTO cuando vendes "metros cuadrados sin dimensiones específicas"
+        # Propagar siempre datos de mármol y pedimento
         vals.update({
             'marble_height':    self.marble_height or 0.0,
             'marble_width':     self.marble_width or 0.0,
@@ -177,34 +126,37 @@ class SaleOrderLine(models.Model):
             'lot_general':      self.lot_general or '',
             'pedimento_number': self.pedimento_number or '',
             'marble_thickness': self.marble_thickness or 0.0,
-            'sale_line_id':     self.id,  # IMPORTANTE: mantener referencia a la línea
+            'sale_line_id':     self.id,
         })
         
-        # LOGGING para ver qué se está enviando al procurement
-        _logger.info(f"[PROCUREMENT-VALUES-DEBUG] Valores enviados al procurement: {vals}")
-        
+        _logger.info(f"[SALE-PROCUREMENT] Valores finales para procurement: {vals}")
         return vals
-    
+
     def _action_launch_stock_rule(self, previous_product_uom_qty=False):
         """
         Sobrescribir para asegurar que cada línea genere su propio procurement
         y mantenga la trazabilidad correcta
         """
-        # Procesar cada línea individualmente para mantener la asociación correcta
+        _logger.info(f"[LAUNCH-STOCK-RULE] Iniciando para {len(self)} líneas de venta")
+        
         for line in self:
-            # Log para debugging
-            _logger.info(f"[LAUNCH-STOCK-RULE] Procesando línea {line.id} con lote {line.lot_id.name if line.lot_id else 'Sin lote'}")
+            _logger.info(f"[LAUNCH-STOCK-RULE] Procesando línea {line.id}:")
+            _logger.info(f"  - Producto: {line.product_id.name}")
+            _logger.info(f"  - Tracking: {line.product_id.tracking}")
+            _logger.info(f"  - Lote: {line.lot_id.name if line.lot_id else 'Sin lote'}")
+            _logger.info(f"  - m²: {line.marble_sqm}")
             
-            # Si el producto tiene tracking o tiene datos de mármol, crear un grupo único
             if line.product_id.tracking != 'none' or line.marble_sqm > 0:
-                # Crear un grupo de procurement único para esta línea
+                # Crear grupo de procurement único
                 group = self.env['procurement.group'].create({
                     'name': f"{line.order_id.name}/L{line.id}",
                     'sale_id': line.order_id.id,
                     'partner_id': line.order_id.partner_id.id,
                 })
                 
-                # Preparar valores con todos los datos de mármol
+                _logger.info(f"[LAUNCH-STOCK-RULE] Grupo único creado: {group.name}")
+                
+                # Preparar valores con todos los datos
                 proc_values = line._prepare_procurement_values(group_id=group.id)
                 
                 # Asegurar que todos los campos estén presentes
@@ -216,12 +168,12 @@ class SaleOrderLine(models.Model):
                     'marble_thickness': line.marble_thickness,
                     'pedimento_number': line.pedimento_number,
                     'lot_id': line.lot_id.id if line.lot_id else False,
-                    'sale_line_id': line.id,  # Importante: mantener referencia a la línea
+                    'sale_line_id': line.id,
                 })
                 
-                _logger.info(f"[LAUNCH-STOCK-RULE] Grupo creado: {group.name} con valores: {proc_values}")
+                _logger.info(f"[LAUNCH-STOCK-RULE] Valores completos para procurement: {proc_values}")
                 
-                # Forzar el uso de este grupo específico
+                # Forzar contexto con los valores preparados
                 line_with_context = line.with_context(
                     default_group_id=group.id,
                     force_procurement_values=proc_values
@@ -229,8 +181,11 @@ class SaleOrderLine(models.Model):
                 
                 # Llamar al método padre para esta línea específica
                 super(SaleOrderLine, line_with_context)._action_launch_stock_rule(previous_product_uom_qty)
+                
+                _logger.info(f"[LAUNCH-STOCK-RULE] Stock rule ejecutada para línea {line.id}")
             else:
-                # Para productos sin tracking, usar el comportamiento normal
+                _logger.info(f"[LAUNCH-STOCK-RULE] Usando comportamiento estándar para línea {line.id}")
                 super(SaleOrderLine, line)._action_launch_stock_rule(previous_product_uom_qty)
         
+        _logger.info("[LAUNCH-STOCK-RULE] Proceso completado para todas las líneas")
         return True
