@@ -6,7 +6,25 @@ from odoo.exceptions import ValidationError
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
 
-    # Selección de lote solo entre lotes DISPONIBLES
+    # --- INICIO: CAMPOS DE sale_order_line_pricing.py ---
+    price_level = fields.Selection(
+        [
+            ('max', 'Precio Máximo'),
+            ('avg', 'Precio Promedio'),
+            ('min', 'Precio Mínimo'),
+            ('manual', 'Manual')
+        ],
+        string='Nivel de Precio',
+        default='max'
+    )
+    applied_price_per_sqm = fields.Float(
+        string='Precio por m² Aplicado',
+        digits='Product Price',
+        readonly=False
+    )
+    # --- FIN: CAMPOS DE sale_order_line_pricing.py ---
+
+    # --- INICIO: CAMPOS DE sale_order_line.py ---
     lot_id = fields.Many2one(
         'stock.lot',
         string='Número de Serie',
@@ -17,7 +35,75 @@ class SaleOrderLine(models.Model):
         string='Lotes Disponibles',
         compute='_compute_available_lots',
     )
+    numero_contenedor = fields.Char(string='Número de Contenedor', store=True, readonly=False)
+    pedimento_number = fields.Char(
+        string='Número de Pedimento',
+        size=18,
+        compute='_compute_pedimento_number',
+        store=True,
+        readonly=True,
+    )
+    marble_height    = fields.Float(string='Altura (m)',   store=True, readonly=False)
+    marble_width     = fields.Float(string='Ancho (m)',    store=True, readonly=False)
+    marble_sqm       = fields.Float(string='m²',           compute='_compute_marble_sqm', store=True, readonly=False)
+    lot_general      = fields.Char(string='Lote',          store=True, readonly=False)
+    marble_thickness = fields.Float(string='Grosor (cm)',  store=True, readonly=False)
+    # --- FIN: CAMPOS DE sale_order_line.py ---
 
+
+    # --- INICIO: MÉTODOS DE sale_order_line_pricing.py ---
+    @api.onchange('lot_id', 'price_level')
+    def _onchange_lot_pricing(self):
+        """
+        Ajusta applied_price_per_sqm y price_unit según el lote y nivel seleccionado,
+        salvo en modo manual.
+        """
+        for line in self:
+            if line.lot_id and line.product_id and line.price_level != 'manual':
+                if line.price_level == 'max':
+                    price_per_sqm = line.product_id.price_per_sqm_max
+                elif line.price_level == 'avg':
+                    price_per_sqm = line.product_id.price_per_sqm_avg
+                else:
+                    price_per_sqm = line.product_id.price_per_sqm_min
+
+                line.applied_price_per_sqm = price_per_sqm or 0.0
+
+                if price_per_sqm and line.marble_sqm:
+                    line.price_unit = line.marble_sqm * price_per_sqm
+            elif line.price_level == 'manual':
+                pass
+            else:
+                line.applied_price_per_sqm = 0.0
+
+    @api.onchange('applied_price_per_sqm', 'marble_sqm')
+    def _onchange_manual_pricing(self):
+        """
+        Recalcula price_unit si se modifica manualmente applied_price_per_sqm o marble_sqm.
+        """
+        for line in self:
+            if line.applied_price_per_sqm and line.marble_sqm:
+                line.price_unit = line.marble_sqm * line.applied_price_per_sqm
+
+    @api.onchange('price_level')
+    def _onchange_price_level_mode(self):
+        """
+        Muestra advertencia al activar modo manual.
+        """
+        if self.price_level == 'manual':
+            return {
+                'warning': {
+                    'title': 'Modo Manual Activado',
+                    'message': (
+                        'Ahora puedes editar directamente el precio por m². '
+                        'El precio unitario se calculará automáticamente.'
+                    )
+                }
+            }
+    # --- FIN: MÉTODOS DE sale_order_line_pricing.py ---
+
+
+    # --- INICIO: MÉTODOS DE sale_order_line.py ---
     @api.depends('product_id')
     def _compute_available_lots(self):
         Quant = self.env['stock.quant']
@@ -32,22 +118,6 @@ class SaleOrderLine(models.Model):
                 line.available_lot_ids = quants.mapped('lot_id')
             else:
                 line.available_lot_ids = False
-
-    # Número de pedimento
-    pedimento_number = fields.Char(
-        string='Número de Pedimento',
-        size=18,
-        compute='_compute_pedimento_number',
-        store=True,
-        readonly=True,
-    )
-
-    # Datos de mármol (EDITABLES)
-    marble_height    = fields.Float(string='Altura (m)',   store=True, readonly=False)
-    marble_width     = fields.Float(string='Ancho (m)',    store=True, readonly=False)
-    marble_sqm       = fields.Float(string='m²',           compute='_compute_marble_sqm', store=True, readonly=False)
-    lot_general      = fields.Char(string='Lote',          store=True, readonly=False)
-    marble_thickness = fields.Float(string='Grosor (cm)',  store=True, readonly=False)
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
@@ -65,6 +135,7 @@ class SaleOrderLine(models.Model):
             self.marble_sqm       = self.lot_id.marble_sqm
             self.lot_general      = self.lot_id.lot_general
             self.marble_thickness = self.lot_id.marble_thickness
+            self.numero_contenedor = self.lot_id.numero_contenedor
 
     @api.depends('lot_id')
     def _compute_pedimento_number(self):
@@ -91,7 +162,9 @@ class SaleOrderLine(models.Model):
                 )
                 if is_mto:
                     continue
-                if line.available_lot_ids and not line.lot_id:
+                
+                # LA LÓGICA CLAVE ESTÁ AQUÍ Y ESTÁ CORRECTA
+                if line.product_id.require_lot_selection_on_sale and line.available_lot_ids and not line.lot_id:
                     raise ValidationError(_(
                         'El producto "%s" tiene stock disponible. '
                         'Debe seleccionar un lote específico.'
@@ -99,12 +172,8 @@ class SaleOrderLine(models.Model):
 
     def _prepare_procurement_values(self, group_id=False):
         vals = super()._prepare_procurement_values(group_id)
-
-        # Solo propagar lot_id si existe
         if self.lot_id:
             vals['lot_id'] = self.lot_id.id
-
-        # Propagar siempre datos de mármol y pedimento
         vals.update({
             'marble_height':    self.marble_height or 0.0,
             'marble_width':     self.marble_width or 0.0,
@@ -113,25 +182,18 @@ class SaleOrderLine(models.Model):
             'pedimento_number': self.pedimento_number or '',
             'marble_thickness': self.marble_thickness or 0.0,
             'sale_line_id':     self.id,
+            'numero_contenedor': self.numero_contenedor or '',
         })
-
         return vals
 
     def _action_launch_stock_rule(self, previous_product_uom_qty=False):
-        """
-        Sobrescribir para asegurar que cada línea genere su propio procurement
-        y mantenga la trazabilidad correcta.
-        """
         for line in self:
             if line.product_id.tracking != 'none' or line.marble_sqm > 0:
-                # Crear grupo de procurement único
                 group = self.env['procurement.group'].create({
                     'name':        f"{line.order_id.name}/L{line.id}",
                     'sale_id':     line.order_id.id,
                     'partner_id':  line.order_id.partner_id.id,
                 })
-
-                # Preparar y completar valores para procurement
                 proc_values = line._prepare_procurement_values(group_id=group.id)
                 proc_values.update({
                     'marble_height':    line.marble_height,
@@ -142,9 +204,8 @@ class SaleOrderLine(models.Model):
                     'pedimento_number': line.pedimento_number,
                     'lot_id':           line.lot_id.id if line.lot_id else False,
                     'sale_line_id':     line.id,
+                    'numero_contenedor': line.numero_contenedor,
                 })
-
-                # Forzar contexto con los valores preparados
                 line_with_context = line.with_context(
                     default_group_id=group.id,
                     force_procurement_values=proc_values
@@ -152,5 +213,5 @@ class SaleOrderLine(models.Model):
                 super(SaleOrderLine, line_with_context)._action_launch_stock_rule(previous_product_uom_qty)
             else:
                 super(SaleOrderLine, line)._action_launch_stock_rule(previous_product_uom_qty)
-
         return True
+    # --- FIN: MÉTODOS DE sale_order_line.py ---

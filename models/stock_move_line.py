@@ -11,6 +11,7 @@ class StockMoveLine(models.Model):
     marble_sqm = fields.Float('m²', compute='_compute_marble_sqm', store=True, readonly=False)
     lot_general = fields.Char('Lote')
     marble_thickness = fields.Float('Grosor (cm)')
+    numero_contenedor = fields.Char('Número de Contenedor')
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
@@ -47,6 +48,7 @@ class StockMoveLine(models.Model):
                         'company_id': vals.get('company_id'),
                         'marble_height': vals.get('marble_height'),
                         'marble_width': vals.get('marble_width'),
+                        'numero_contenedor': vals.get('numero_contenedor', ''),
                         'marble_sqm': (vals.get('marble_height') or 0.0) * (vals.get('marble_width') or 0.0),
                         'lot_general': lot_general,
                         'marble_thickness': vals.get('marble_thickness', 0.0),
@@ -84,6 +86,7 @@ class StockMoveLine(models.Model):
                 'marble_sqm': (vals.get('marble_height', line.marble_height) or 0.0) * (vals.get('marble_width', line.marble_width) or 0.0),
                 'lot_general': lot_general,
                 'marble_thickness': vals.get('marble_thickness', line.marble_thickness),
+                'numero_contenedor': vals.get('numero_contenedor', line.numero_contenedor),
             })
             update_vals = vals.copy()
             update_vals['lot_id'] = new_lot.id

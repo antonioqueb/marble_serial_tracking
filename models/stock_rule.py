@@ -25,6 +25,7 @@ class StockRule(models.Model):
                     'lot_general':      sale_line.lot_general,
                     'pedimento_number': sale_line.pedimento_number,
                     'marble_thickness': sale_line.marble_thickness,
+                    'numero_contenedor': sale_line.numero_contenedor,
                 }
                 if sale_line.lot_id:
                     marble_data.update({
@@ -40,6 +41,7 @@ class StockRule(models.Model):
                 'lot_general':      values.get('lot_general', ''),
                 'pedimento_number': values.get('pedimento_number', ''),
                 'marble_thickness': values.get('marble_thickness', 0.0),
+                'numero_contenedor': values.get('numero_contenedor', ''),
             }
             forced_lot = values.get('lot_id')
             if forced_lot:

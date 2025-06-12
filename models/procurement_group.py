@@ -34,6 +34,7 @@ class StockRule(models.Model):
                     'marble_sqm': current_proc_values.get('marble_sqm', 0.0),
                     'lot_general': current_proc_values.get('lot_general', ''),
                     'marble_thickness': current_proc_values.get('marble_thickness', 0.0),
+                    'numero_contenedor': current_proc_values.get('numero_contenedor', ''),
                 }
 
             # Intento 2: Si no, intentar obtenerlos del stock.move de origen (move_dest_ids)
@@ -48,6 +49,8 @@ class StockRule(models.Model):
                             'marble_sqm': first_move.marble_sqm,
                             'lot_general': first_move.lot_general,
                             'marble_thickness': first_move.marble_thickness,
+                            'numero_contenedor': first_move.numero_contenedor,
+                            
                         }
                         # IMPORTANTE: Añadir estos datos al diccionario original_proc_values_map[proc_key]
                         original_proc_values_map[proc_key].update(marble_data_found)
@@ -115,7 +118,7 @@ class StockRule(models.Model):
             marble_fields_to_set['marble_width'] = values_for_po_line.get('marble_width', 0.0)
             marble_fields_to_set['lot_general'] = values_for_po_line.get('lot_general', '')
             marble_fields_to_set['marble_thickness'] = values_for_po_line.get('marble_thickness', 0.0)
-
+            marble_fields_to_set['numero_contenedor'] = values_for_po_line.get('numero_contenedor', '')
         if marble_fields_to_set:
             res_vals.update(marble_fields_to_set)
 

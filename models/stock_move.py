@@ -15,6 +15,7 @@ class StockMove(models.Model):
     marble_thickness = fields.Float('Grosor (cm)')
     is_outgoing = fields.Boolean(string='Es Salida', compute='_compute_is_outgoing', store=True)
     pedimento_number = fields.Char(string='Número de Pedimento', size=18)
+    numero_contenedor = fields.Char('Número de Contenedor')
 
     lot_selection_mode = fields.Selection([
         ('existing', 'Seleccionar Lote Existente'),
@@ -74,6 +75,7 @@ class StockMove(models.Model):
             self.marble_thickness = lot.marble_thickness
             self.lot_id = lot.id
             self.so_lot_id = lot.id
+            self.numero_contenedor = lot.numero_contenedor
 
             quant = self.env['stock.quant'].search([
                 ('lot_id', '=', lot.id),
@@ -132,6 +134,7 @@ class StockMove(models.Model):
                     'lot_general': move.lot_general,
                     'marble_thickness': move.marble_thickness,
                     'pedimento_number': move.pedimento_number or '',
+                    'numero_contenedor': move.numero_contenedor,
                 }
                 if move.lot_id:
                     data['lot_id'] = move.lot_id.id
@@ -146,6 +149,7 @@ class StockMove(models.Model):
             'lot_general': self.lot_general or '',
             'marble_thickness': self.marble_thickness or 0.0,
             'pedimento_number': self.pedimento_number or '',
+            'numero_contenedor': self.numero_contenedor or '',
         }
         if self.is_outgoing and self.lot_id:
             marble_data['lot_id'] = self.lot_id.id

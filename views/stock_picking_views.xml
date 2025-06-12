@@ -26,6 +26,12 @@
                        placeholder="Ingrese nombre del lote..."
                        decoration-info="lot_selection_mode == 'manual' or is_outgoing == False"
                        decoration-muted="lot_selection_mode == 'existing'"/>
+
+                <field name="numero_contenedor"
+                     readonly="lot_selection_mode == 'existing' and is_outgoing == True"
+                     placeholder="Ingrese número de contenedor..."
+                     decoration-info="lot_selection_mode == 'manual' or is_outgoing == False"
+                     decoration-muted="lot_selection_mode == 'existing'"/>
                 
                 <!-- Campos de dimensiones -->
                 <field name="marble_thickness" 

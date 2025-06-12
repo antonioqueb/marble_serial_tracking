@@ -8,3 +8,4 @@ class StockLot(models.Model):
     marble_sqm = fields.Float('m²')
     lot_general = fields.Char('Lote')
     marble_thickness = fields.Float('Grosor (cm)')
+    numero_contenedor = fields.Char('Número de Contenedor')

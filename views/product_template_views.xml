@@ -13,6 +13,9 @@
                     <field name="price_per_sqm_avg"/>
                     <field name="price_per_sqm_min"/>
                 </group>
+               
+                <separator string="Configuración de Venta por Lote"/>
+                <field name="require_lot_selection_on_sale"/>
             </xpath>
             
         </field>

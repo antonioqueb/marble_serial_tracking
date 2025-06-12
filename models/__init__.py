@@ -7,7 +7,6 @@ from . import purchase_order
 from . import sale_order_line
 from . import stock_rule
 from . import product_template
-from . import sale_order_line_pricing
 from . import sale_order
 from . import procurement_group
 from . import stock_picking

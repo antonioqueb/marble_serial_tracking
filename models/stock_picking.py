@@ -35,6 +35,8 @@ class StockPicking(models.Model):
                     'lot_general':      move.lot_id.lot_general,
                     'marble_thickness': move.lot_id.marble_thickness,
                     'pedimento_number': quant.pedimento_number or '',
+                    'numero_contenedor': move.lot_id.numero_contenedor,
+
                 })
 
     def write(self, vals):
@@ -69,6 +71,7 @@ class StockPicking(models.Model):
                             'marble_thickness': sale.marble_thickness,
                             'pedimento_number': sale.pedimento_number,
                             'lot_id':           sale.lot_id.id,
+                            'numero_contenedor': sale.numero_contenedor,
                         })
 
         # --- PASO 3: Propagación Final a las Líneas de Operación ---
@@ -90,6 +93,7 @@ class StockPicking(models.Model):
                 'marble_sqm': lot.marble_sqm,
                 'lot_general': lot.lot_general,
                 'marble_thickness': lot.marble_thickness,
+                'numero_contenedor': lot.numero_contenedor,
             }
             
             # Buscamos el pedimento del quant correspondiente

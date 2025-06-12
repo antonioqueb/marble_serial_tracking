@@ -1,29 +1,54 @@
 <odoo>
-    <record id="view_sale_order_form_marble_inherit" model="ir.ui.view">
-        <field name="name">sale.order.form.marble</field>
+    <!-- Vista Unificada para la Línea de Orden de Venta -->
+    <record id="view_order_form_inherit_marble_and_pricing" model="ir.ui.view">
+        <field name="name">sale.order.form.inherit.marble.pricing</field>
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
 
-            <!-- ─────────── Formulario: DESPUÉS del product_id ─────────── -->
+            <!-- Añadimos Nivel de Precio y Precio por m² -->
             <xpath expr="//field[@name='order_line']/form//field[@name='product_id']" position="after">
                 <field name="price_level"/>
-                <!-- Campo editable con condiciones directas (Odoo 17/18) -->
-                <field name="applied_price_per_sqm" 
+                <field name="applied_price_per_sqm"
                        readonly="price_level != 'manual'"
                        decoration-info="price_level == 'manual'"
                        decoration-muted="price_level != 'manual'"/>
             </xpath>
 
-            <!-- ─────────── Tree: ANTES del price_unit ─────────── -->
+            <!-- Añadimos los mismos campos a la vista de lista -->
             <xpath expr="//field[@name='order_line']/list//field[@name='price_unit']" position="before">
                 <field name="price_level" optional="show"/>
-                <!-- Campo editable en vista lista también -->
-                <field name="applied_price_per_sqm" 
+                <field name="applied_price_per_sqm"
                        optional="show"
                        readonly="price_level != 'manual'"
                        decoration-info="price_level == 'manual'"
                        decoration-muted="price_level != 'manual'"/>
+            </xpath>
+
+            <!-- Añadimos Lote/Serie y campos de Mármol -->
+            <xpath expr="//field[@name='order_line']/form//field[@name='applied_price_per_sqm']" position="after">
+                <field name="lot_id" domain="[('product_id', '=', product_id)]"/>
+                <field name="pedimento_number" readonly="1"/>
+                <group string="Detalles de Pieza (Editables si no se selecciona lote)">
+                    <field name="marble_thickness"/>
+                    <field name="marble_height"/>
+                    <field name="marble_width"/>
+                    <field name="marble_sqm"/>
+                    <field name="lot_general"/>
+                    <field name="numero_contenedor"/>
+                </group>
+            </xpath>
+
+            <!-- Añadimos los mismos campos de Lote/Mármol a la vista de lista -->
+            <xpath expr="//field[@name='order_line']/list//field[@name='applied_price_per_sqm']" position="after">
+                <field name="lot_id" optional="show"/>
+                <field name="pedimento_number" readonly="1" optional="show"/>
+                <field name="marble_thickness" optional="show"/>
+                <field name="marble_height" optional="show"/>
+                <field name="marble_width" optional="show"/>
+                <field name="marble_sqm" optional="show"/>
+                <field name="lot_general" optional="show"/>
+                <field name="numero_contenedor" optional="show"/>
             </xpath>
 
         </field>

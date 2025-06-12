@@ -22,3 +22,13 @@ class ProductTemplate(models.Model):
         digits='Product Price',
         help='Precio máximo de venta por metro cuadrado'
     )
+
+    # --- INICIO DEL CAMBIO ---
+    # Añade este nuevo campo
+    require_lot_selection_on_sale = fields.Boolean(
+        string="Exigir Lote Específico en Venta",
+        default=True,
+        help="Si se marca, será obligatorio seleccionar un número de lote/serie en la orden de venta si hay stock disponible.\n"
+             "Desmarcar para productos (como porcelanato) donde el lote se puede asignar durante el picking en el almacén."
+    )
+    # --- FIN DEL CAMBIO ---

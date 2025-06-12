@@ -11,6 +11,7 @@
                 <field name="marble_width"/>
                 <field name="marble_sqm"/>
                 <field name="lot_general"/>
+                <field name="numero_contenedor"/>
             </xpath>
 
         </field>

@@ -28,6 +28,7 @@ class PurchaseOrder(models.Model):
                     'marble_sqm': marble_sqm,
                     'marble_thickness': po_line.marble_thickness or 0.0,
                     'lot_general': po_line.lot_general or '',
+                    'numero_contenedor': po_line.numero_contenedor or '',
                 })
 
         return res

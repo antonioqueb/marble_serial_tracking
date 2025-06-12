@@ -8,6 +8,7 @@ class PurchaseOrderLine(models.Model):
     marble_sqm = fields.Float('m²', compute='_compute_marble_sqm', store=True, readonly=False)
     lot_general = fields.Char('Lote', store=True)
     marble_thickness = fields.Float('Grosor (cm)')
+    numero_contenedor = fields.Char('Número de Contenedor', store=True)
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
@@ -45,6 +46,7 @@ class PurchaseOrderLine(models.Model):
             'marble_sqm': self.marble_sqm or 0.0,
             'lot_general': self.lot_general or '',
             'marble_thickness': self.marble_thickness or 0.0,
+            'numero_contenedor': self.numero_contenedor or '',
         })
         return vals
 
