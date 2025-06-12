@@ -61,24 +61,58 @@ class StockMove(models.Model):
 
     @api.onchange('existing_lot_id')
     def _onchange_existing_lot_id(self):
+        """
+        Al seleccionar un lote existente, este onchange hace dos cosas:
+        1. Actualiza los datos de la línea actual que se está editando.
+        2. Revisa las otras líneas del mismo albarán para forzar la sincronización
+           si también tienen un lote asignado pero datos inconsistentes. Esto
+           mejora la experiencia de usuario al añadir múltiples líneas.
+        """
         if self.lot_selection_mode == 'existing' and self.existing_lot_id:
             lot = self.existing_lot_id
+            
+            # 1. Actualiza la línea actual
             self.lot_general = lot.lot_general
             self.marble_height = lot.marble_height
             self.marble_width = lot.marble_width
             self.marble_sqm = lot.marble_sqm
             self.marble_thickness = lot.marble_thickness
+            self.lot_id = lot.id
+            self.so_lot_id = lot.id
 
             quant = self.env['stock.quant'].search([
                 ('lot_id', '=', lot.id),
                 ('quantity', '>', 0),
                 ('location_id.usage', '=', 'internal'),
             ], limit=1, order='in_date DESC')
-            self.pedimento_number = quant.pedimento_number or False
+            self.pedimento_number = quant.pedimento_number or ''
 
-            if self.is_outgoing:
-                self.lot_id = lot.id
-                self.so_lot_id = lot.id
+            # 2. Sincroniza las otras líneas del albarán (si ya está en un picking)
+            if self.picking_id:
+                _logger.info(f"Onchange en Move {self._origin.id if self._origin else 'nuevo'}: Revisando otras líneas del picking {self.picking_id.name} para sincronizar.")
+                # Itera sobre los otros moves del mismo picking
+                for other_move in self.picking_id.move_ids_without_package:
+                    # Nos saltamos el move que estamos editando actualmente
+                    if other_move == self._origin:
+                        continue
+                    
+                    # Si el otro move tiene un lote pero sus dimensiones no coinciden, lo corregimos
+                    if other_move.lot_id and other_move.marble_sqm != other_move.lot_id.marble_sqm:
+                         _logger.info(f"Onchange encontró y va a corregir el Move {other_move.id} que estaba desincronizado.")
+                         other_quant = self.env['stock.quant'].search([
+                            ('lot_id', '=', other_move.lot_id.id),
+                            ('quantity', '>', 0),
+                            ('location_id.usage', '=', 'internal'),
+                         ], limit=1, order='in_date DESC')
+
+                         # Se actualizan los valores del otro move directamente
+                         other_move.lot_general = other_move.lot_id.lot_general
+                         other_move.marble_height = other_move.lot_id.marble_height
+                         other_move.marble_width = other_move.lot_id.marble_width
+                         other_move.marble_sqm = other_move.lot_id.marble_sqm
+                         other_move.marble_thickness = other_move.lot_id.marble_thickness
+                         other_move.pedimento_number = other_quant.pedimento_number or ''
+
 
     @api.depends('marble_height', 'marble_width')
     def _compute_marble_sqm(self):
@@ -91,69 +125,33 @@ class StockMove(models.Model):
             move.is_outgoing = move.picking_type_id.code == 'outgoing'
 
     def write(self, vals):
+        # La lógica que estaba aquí para actualizar desde existing_lot_id
+        # se ha movido al onchange para una mejor experiencia de usuario.
+        # El write ahora se enfoca en su tarea principal.
+        
         _logger.info(f"[STOCK-MOVE-WRITE] === INICIO write para {len(self)} moves ===")
         _logger.info(f"[STOCK-MOVE-WRITE] Valores a escribir: {vals}")
         
-        # Handle existing-lot mode
-        if vals.get('existing_lot_id'):
-            lot = self.env['stock.lot'].browse(vals['existing_lot_id'])
-            if lot:
-                quant = self.env['stock.quant'].search([
-                    ('lot_id', '=', lot.id),
-                    ('quantity', '>', 0),
-                    ('location_id.usage', '=', 'internal'),
-                ], limit=1, order='in_date DESC')
-                vals.update({
-                    'lot_general': lot.lot_general,
-                    'marble_height': lot.marble_height,
-                    'marble_width': lot.marble_width,
-                    'marble_sqm': lot.marble_sqm,
-                    'marble_thickness': lot.marble_thickness,
-                    'pedimento_number': quant.pedimento_number or False,
-                })
-                if self.is_outgoing:
-                    vals['lot_id'] = lot.id
-                    vals['so_lot_id'] = lot.id
-
-        # Handle manual-lot creation on incoming
-        if vals.get('lot_general') and not self.is_outgoing:
-            lines = self.move_line_ids.filtered(lambda ml: not ml.lot_id)
-            if lines:
-                lines.write({
-                    'lot_general': vals['lot_general'],
-                    'marble_height': vals.get('marble_height', self.marble_height),
-                    'marble_width': vals.get('marble_width', self.marble_width),
-                    'marble_thickness': vals.get('marble_thickness', self.marble_thickness),
-                    'pedimento_number': vals.get('pedimento_number', self.pedimento_number),
-                })
-
         result = super().write(vals)
         
-        _logger.info(f"[STOCK-MOVE-WRITE] Llamando _propagate_marble_data_to_move_lines")
-        self._propagate_marble_data_to_move_lines()
+        # Propagar datos solo si hay registros en el recordset.
+        if self:
+            _logger.info(f"[STOCK-MOVE-WRITE] Llamando a _propagate_marble_data_to_move_lines para {len(self)} moves.")
+            self._propagate_marble_data_to_move_lines()
         
         _logger.info(f"[STOCK-MOVE-WRITE] === FIN write ===")
         return result
 
     def _propagate_marble_data_to_move_lines(self):
-        """
-        Propagar datos de mármol del move a sus move_lines
-        """
         _logger.info(f"[PROPAGATE-DATA] === INICIO propagación para {len(self)} moves ===")
-        
         for move in self:
-            _logger.info(f"[PROPAGATE-DATA] Move {move.id} - {move.product_id.name}")
-            _logger.info(f"[PROPAGATE-DATA] Datos actuales del move:")
-            _logger.info(f"  - marble_height: {move.marble_height}")
-            _logger.info(f"  - marble_width: {move.marble_width}")
-            _logger.info(f"  - marble_sqm: {move.marble_sqm}")
-            _logger.info(f"  - lot_general: {move.lot_general}")
-            _logger.info(f"  - pedimento_number: {move.pedimento_number}")
-            _logger.info(f"  - lot_id: {move.lot_id.id if move.lot_id else 'None'}")
+            if not move.exists():
+                continue
+            
+            _logger.info(f"[PROPAGATE-DATA] Procesando Move {move.id} - {move.product_id.name}")
+            _logger.info(f"[PROPAGATE-DATA]   Datos actuales del move: SQM={move.marble_sqm}, LotID={move.lot_id.name if move.lot_id else 'None'}")
             
             if move.move_line_ids:
-                _logger.info(f"[PROPAGATE-DATA] Propagando a {len(move.move_line_ids)} move_lines")
-                
                 data = {
                     'marble_height': move.marble_height,
                     'marble_width': move.marble_width,
@@ -165,19 +163,9 @@ class StockMove(models.Model):
                 if move.lot_id:
                     data['lot_id'] = move.lot_id.id
                     
+                _logger.info(f"[PROPAGATE-DATA]   Propagando a {len(move.move_line_ids)} move_lines: {data}")
                 move.move_line_ids.write(data)
-                
-                # Verificar propagación
-                for line in move.move_line_ids:
-                    _logger.info(f"[PROPAGATE-DATA] Move line {line.id} después de propagación:")
-                    _logger.info(f"  - marble_height: {line.marble_height}")
-                    _logger.info(f"  - marble_width: {line.marble_width}")
-                    _logger.info(f"  - marble_sqm: {line.marble_sqm}")
-                    _logger.info(f"  - lot_general: {line.lot_general}")
-                    _logger.info(f"  - lot_id: {line.lot_id.id if line.lot_id else 'None'}")
-            else:
-                _logger.info(f"[PROPAGATE-DATA] Move {move.id} no tiene move_lines")
-                
+
         _logger.info(f"[PROPAGATE-DATA] === FIN propagación ===")
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
@@ -200,53 +188,19 @@ class StockMove(models.Model):
             
         vals.update(marble_data)
         
-        _logger.info(f"[PREPARE-MOVE-LINE] Valores finales para move_line:")
-        _logger.info(f"  - marble_height: {vals.get('marble_height')}")
-        _logger.info(f"  - marble_width: {vals.get('marble_width')}")
-        _logger.info(f"  - marble_sqm: {vals.get('marble_sqm')}")
-        _logger.info(f"  - lot_general: {vals.get('lot_general')}")
-        _logger.info(f"  - lot_id: {vals.get('lot_id')}")
+        _logger.info(f"[PREPARE-MOVE-LINE] Valores finales para move_line: { {k: v for k, v in vals.items() if 'marble' in k or 'lot' in k} }")
         _logger.info(f"[PREPARE-MOVE-LINE] === FIN ===")
         
         return vals
-
-    def _create_move_lines(self):
-        _logger.info(f"[CREATE-MOVE-LINES] Creando move_lines para {len(self)} moves")
-        res = super()._create_move_lines()
-        
-        for move in self:
-            _logger.info(f"[CREATE-MOVE-LINES] Propagando datos para move {move.id}")
-            move._propagate_marble_data_to_move_lines()
-            
-        return res
 
     def _action_assign(self):
         _logger.info(f"[ACTION-ASSIGN] === INICIO para {len(self)} moves ===")
         result = super()._action_assign()
         
         for move in self:
-            if move.move_line_ids and (move.marble_sqm or move.lot_general):
+            if move.move_line_ids and (move.lot_id or move.marble_sqm or move.lot_general):
                 _logger.info(f"[ACTION-ASSIGN] Move {move.id} tiene datos de mármol, propagando...")
-                
-                data = {
-                    'marble_height': move.marble_height,
-                    'marble_width': move.marble_width,
-                    'marble_sqm': move.marble_sqm,
-                    'lot_general': move.lot_general,
-                    'marble_thickness': move.marble_thickness,
-                    'pedimento_number': move.pedimento_number,
-                }
-                if move.lot_id:
-                    data['lot_id'] = move.lot_id.id
-                    
-                _logger.info(f"[ACTION-ASSIGN] Datos a propagar: {data}")
-                move.move_line_ids.write(data)
-                
-                # Verificar
-                for line in move.move_line_ids:
-                    _logger.info(f"[ACTION-ASSIGN] Move line {line.id} actualizada:")
-                    _logger.info(f"  - marble_sqm: {line.marble_sqm}")
-                    _logger.info(f"  - lot_id: {line.lot_id.id if line.lot_id else 'None'}")
+                move._propagate_marble_data_to_move_lines()
                     
         _logger.info(f"[ACTION-ASSIGN] === FIN ===")
         return result
