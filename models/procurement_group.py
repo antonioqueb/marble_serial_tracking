@@ -1,15 +1,10 @@
-# models/procurement_group.py
 from odoo import models, api
-import logging
-
-_logger = logging.getLogger(__name__)
 
 class StockRule(models.Model):
     _inherit = 'stock.rule'
 
-    def _run_buy(self, procurements): # procurements es una lista de tuplas (procurement_request, rule)
-        _logger.info(f"[MARBLE-PROCUREMENT] Ejecutando _run_buy para {len(procurements)} procurements")
-        procurement_data_to_apply = {} # {proc_key: marble_data_dict}
+    def _run_buy(self, procurements):  # procurements es una lista de tuplas (procurement_request, rule)
+        procurement_data_to_apply = {}  # {proc_key: marble_data_dict}
         # Nuevo: mapeo de proc_key a los valores originales del procurement_request para _prepare_purchase_order_line
         original_proc_values_map = {}
 
@@ -18,18 +13,16 @@ class StockRule(models.Model):
             if not hasattr(procurement_request, 'product_id') or \
                not hasattr(procurement_request, 'origin') or \
                not hasattr(procurement_request, 'values'):
-                _logger.warning(f"[MARBLE-PROCUREMENT] BUCLE 1: procurement_request con formato inesperado: {procurement_request}. Omitiendo.")
                 continue
 
             product_record = procurement_request.product_id
-            origin_str = procurement_request.origin # Este es el SO (ej. S00002)
+            origin_str = procurement_request.origin  # Este es el SO (ej. S00002)
 
             # procurement_request.values es el diccionario de valores que llega a _run_buy.
             current_proc_values = procurement_request.values or {}
-            _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 1: Origen: {origin_str}, Producto: {product_record.name}, Valores en procurement_request.values: {current_proc_values}")
 
             proc_key = f"{product_record.id}_{origin_str}"
-            original_proc_values_map[proc_key] = current_proc_values # Guardamos los valores que SÍ llegan
+            original_proc_values_map[proc_key] = current_proc_values  # Guardamos los valores que SÍ llegan
 
             marble_data_found = {}
 
@@ -42,14 +35,13 @@ class StockRule(models.Model):
                     'lot_general': current_proc_values.get('lot_general', ''),
                     'marble_thickness': current_proc_values.get('marble_thickness', 0.0),
                 }
-                _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 1: Datos de mármol encontrados directamente en current_proc_values para {proc_key}: {marble_data_found}")
 
             # Intento 2: Si no, intentar obtenerlos del stock.move de origen (move_dest_ids)
             if not marble_data_found and 'move_dest_ids' in current_proc_values and current_proc_values['move_dest_ids']:
                 source_moves = current_proc_values['move_dest_ids']
                 if isinstance(source_moves, models.BaseModel) and source_moves._name == 'stock.move':
                     first_move = source_moves[0] if source_moves else None
-                    if first_move and first_move.marble_sqm > 0: # Chequeamos si el move tiene los m2
+                    if first_move and first_move.marble_sqm > 0:  # Chequeamos si el move tiene los m2
                         marble_data_found = {
                             'marble_height': first_move.marble_height,
                             'marble_width': first_move.marble_width,
@@ -57,25 +49,19 @@ class StockRule(models.Model):
                             'lot_general': first_move.lot_general,
                             'marble_thickness': first_move.marble_thickness,
                         }
-                        _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 1: Datos de mármol encontrados en el move de origen {first_move.name} (ID: {first_move.id}) para {proc_key}: {marble_data_found}")
-
                         # IMPORTANTE: Añadir estos datos al diccionario original_proc_values_map[proc_key]
                         original_proc_values_map[proc_key].update(marble_data_found)
-                        _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 1: original_proc_values_map actualizado para {proc_key}: {original_proc_values_map[proc_key]}")
 
             if marble_data_found:
                 procurement_data_to_apply[proc_key] = marble_data_found
-            else:
-                _logger.warning(f"[MARBLE-PROCUREMENT] BUCLE 1: No se capturaron datos de mármol para {proc_key} ni en current_proc_values ni en moves de origen.")
 
         # Pasar el mapa de valores originales al contexto para que _prepare_purchase_order_line lo use
         self_with_context = self.with_context(original_proc_values_map=original_proc_values_map)
 
-        res = super(StockRule, self_with_context)._run_buy(procurements) # Llamar a super con el contexto modificado
+        res = super(StockRule, self_with_context)._run_buy(procurements)  # Llamar a super con el contexto modificado
 
         # BUCLE 2: Aplicar/Reafirmar los datos de mármol a las PO Lines.
         if procurement_data_to_apply:
-            _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 2: Iniciando aplicación de datos de mármol a PO Lines. Datos capturados: {procurement_data_to_apply}")
             for procurement_request, rule in procurements:
                 if not hasattr(procurement_request, 'product_id') or not hasattr(procurement_request, 'origin'):
                     continue
@@ -91,56 +77,39 @@ class StockRule(models.Model):
                     if move_dest_ids_val:
                         actual_move_ids = []
                         # Asegurarse de que move_dest_ids_val es un iterable de IDs
-                        if isinstance(move_dest_ids_val, models.BaseModel): # Si es un recordset
+                        if isinstance(move_dest_ids_val, models.BaseModel):  # Si es un recordset
                             actual_move_ids = move_dest_ids_val.ids
-                        elif isinstance(move_dest_ids_val, (list, tuple)) and all(isinstance(i, int) for i in move_dest_ids_val): # Si es una lista/tupla de IDs
+                        elif isinstance(move_dest_ids_val, (list, tuple)) and all(isinstance(i, int) for i in move_dest_ids_val):  # Si es una lista/tupla de IDs
                             actual_move_ids = list(move_dest_ids_val)
-                        elif isinstance(move_dest_ids_val, int): # Si es un solo ID
-                             actual_move_ids = [move_dest_ids_val]
-                        # Podría haber otros formatos como comandos (0,0,{}) etc., pero para MTO suele ser un recordset o IDs.
+                        elif isinstance(move_dest_ids_val, int):  # Si es un solo ID
+                            actual_move_ids = [move_dest_ids_val]
 
                         if not actual_move_ids:
-                            _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 2: No hay move_dest_ids concretos para buscar PO lines para proc_key {proc_key} (valor: {move_dest_ids_val})")
                             continue
 
                         po_lines = self.env['purchase.order.line'].search([
                             ('move_dest_ids', 'in', actual_move_ids)
                         ])
 
-                        if not po_lines:
-                            _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 2: No se encontraron líneas de PO para move_dest_ids {actual_move_ids} (proc_key {proc_key})")
-                        else:
+                        if po_lines:
                             for po_line in po_lines:
-                                _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 2: Actualizando PO line {po_line.id} (Orden: {po_line.order_id.name}) con: {marble_data}")
                                 po_line.with_context(from_procurement=True).write(marble_data)
-                                # po_line.refresh() # <--- LÍNEA ELIMINADA/COMENTADA
-                                _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 2: PO line {po_line.id} DESPUÉS de actualizar: m²={po_line.marble_sqm}, altura={po_line.marble_height}, ancho={po_line.marble_width}")
-                    else:
-                         _logger.info(f"[MARBLE-PROCUREMENT] BUCLE 2: No hay 'move_dest_ids' en current_proc_values para proc_key {proc_key}. No se pueden encontrar PO lines por esta vía.")
-        else:
-            _logger.info("[MARBLE-PROCUREMENT] BUCLE 2: No hay datos de mármol capturados para aplicar a PO Lines.")
-
         return res
 
     def _prepare_purchase_order_line(self, product_id, product_qty, product_uom, company_id, values, po):
-        origin_str = values.get('origin') # El origin del procurement_request
+        origin_str = values.get('origin')  # El origin del procurement_request
         proc_key = f"{product_id.id}_{origin_str}"
 
         original_proc_values_map = self.env.context.get('original_proc_values_map', {})
         # Usar los valores enriquecidos del mapa si existen para esta clave, sino los 'values' directos.
         values_for_po_line = original_proc_values_map.get(proc_key, values)
 
-        _logger.info(f"[MARBLE-PREPARE] Iniciando para producto {product_id.name}, PO: {po.name if po else 'Nueva PO'}, ProcOrigin: {origin_str}, ProcKey: {proc_key}")
-        _logger.info(f"[MARBLE-PREPARE] 'values' directos recibidos: {values}")
-        _logger.info(f"[MARBLE-PREPARE] 'values_for_po_line' (potencialmente enriquecidos): {values_for_po_line}")
-
         # Llamar a super con los 'values' originales.
         res_vals = super()._prepare_purchase_order_line(product_id, product_qty, product_uom, company_id, values, po)
-        _logger.info(f"[MARBLE-PREPARE] Valores de res_vals DESPUÉS de super(): {res_vals}")
 
         marble_fields_to_set = {}
         # Ahora usamos 'values_for_po_line' que debería tener los datos de mármol.
-        if values_for_po_line.get('marble_sqm', 0.0) > 0: # Condición principal para aplicar datos de mármol
+        if values_for_po_line.get('marble_sqm', 0.0) > 0:  # Condición principal para aplicar datos de mármol
             marble_fields_to_set['marble_sqm'] = values_for_po_line.get('marble_sqm', 0.0)
             marble_fields_to_set['marble_height'] = values_for_po_line.get('marble_height', 0.0)
             marble_fields_to_set['marble_width'] = values_for_po_line.get('marble_width', 0.0)
@@ -148,10 +117,6 @@ class StockRule(models.Model):
             marble_fields_to_set['marble_thickness'] = values_for_po_line.get('marble_thickness', 0.0)
 
         if marble_fields_to_set:
-            _logger.info(f"[MARBLE-PREPARE] Aplicando campos de mármol a res_vals: {marble_fields_to_set}")
             res_vals.update(marble_fields_to_set)
-        else:
-            _logger.info(f"[MARBLE-PREPARE] No se aplicaron campos de mármol a res_vals (marble_sqm no era > 0 en values_for_po_line o no estaba presente).")
 
-        _logger.info(f"[MARBLE-PREPARE] Valores de res_vals ANTES de return: {res_vals}")
         return res_vals
